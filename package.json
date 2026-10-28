@@ -1,0 +1,10 @@
+{
+  "name": "com.oystein.circadian",
+  "version": "1.0.0",
+  "private": true,
+  "main": "app.js",
+  "dependencies": {
+    "homey-api": "^3.0.0",
+    "suncalc": "^1.9.0"
+  }
+}

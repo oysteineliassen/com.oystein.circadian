@@ -1,0 +1,151 @@
+{
+  "id": "com.oystein.circadian",
+  "version": "1.0.0",
+  "compatibility": ">=5.0.0",
+  "sdk": 3,
+  "platforms": [
+    "local"
+  ],
+  "name": {
+    "en": "Circadian Lighting",
+    "no": "Døgnrytmelys"
+  },
+  "description": {
+    "en": "Automatically adjusts the color temperature of your lights through the day (sun-based or fixed schedule).",
+    "no": "Justerer automatisk fargetemperaturen på lysene dine gjennom dagen (basert på sol eller fast tidsplan)."
+  },
+  "category": [
+    "lights"
+  ],
+  "permissions": [
+    "homey:manager:api",
+    "homey:manager:geolocation"
+  ],
+  "images": {
+    "small": "/assets/images/small.png",
+    "large": "/assets/images/large.png"
+  },
+  "author": {
+    "name": "Øystein"
+  },
+  "api": {
+    "getDevices": {
+      "method": "GET",
+      "path": "/devices"
+    },
+    "getConfig": {
+      "method": "GET",
+      "path": "/config"
+    },
+    "setConfig": {
+      "method": "POST",
+      "path": "/config"
+    },
+    "applyNow": {
+      "method": "POST",
+      "path": "/apply"
+    },
+    "resumeDevice": {
+      "method": "POST",
+      "path": "/resume"
+    },
+    "resumeAll": {
+      "method": "POST",
+      "path": "/resume-all"
+    },
+    "simulateGroup": {
+      "method": "POST",
+      "path": "/simulate"
+    },
+    "stopSimulation": {
+      "method": "POST",
+      "path": "/simulate-stop"
+    },
+    "getSimulationStatus": {
+      "method": "GET",
+      "path": "/simulate-status"
+    }
+  },
+  "flow": {
+    "actions": [
+      {
+        "id": "resume-circadian",
+        "title": {
+          "en": "Resume circadian lighting",
+          "no": "Aktiver døgnrytmestyring (alle lys)"
+        }
+      },
+      {
+        "id": "resume-circadian-device",
+        "title": {
+          "en": "Resume circadian lighting for a light",
+          "no": "Aktiver døgnrytmestyring for ett lys"
+        },
+        "titleFormatted": {
+          "en": "Resume circadian lighting for [[device]]",
+          "no": "Aktiver døgnrytmestyring for [[device]]"
+        },
+        "args": [
+          {
+            "name": "device",
+            "type": "autocomplete",
+            "placeholder": {
+              "en": "Choose a light",
+              "no": "Velg et lys"
+            }
+          }
+        ]
+      },
+      {
+        "id": "turn-on-group",
+        "title": {
+          "en": "Turn on a group and start circadian lighting",
+          "no": "Slå på en gruppe og start døgnrytme"
+        },
+        "titleFormatted": {
+          "en": "Turn on [[group]] and start circadian lighting",
+          "no": "Slå på [[group]] og start døgnrytme"
+        },
+        "hint": {
+          "en": "Switches on every light in the group, also ones that are off, at the schedule's current values, and unlocks them.",
+          "no": "Slår på alle lysene i gruppen, også de som er av, med verdiene døgnrytmen har akkurat nå, og låser dem opp."
+        },
+        "args": [
+          {
+            "name": "group",
+            "type": "autocomplete",
+            "placeholder": {
+              "en": "Choose a group",
+              "no": "Velg en gruppe"
+            }
+          }
+        ]
+      },
+      {
+        "id": "pause-until-off",
+        "title": {
+          "en": "Pause circadian lighting until switched off",
+          "no": "Sett døgnrytme på pause til lyset slås av"
+        },
+        "titleFormatted": {
+          "en": "Pause circadian lighting for [[target]] until switched off",
+          "no": "Sett døgnrytme på pause for [[target]] til det slås av"
+        },
+        "hint": {
+          "en": "The app leaves the light (or every light in the group) alone until it is next switched off. Useful for motion-triggered night lights.",
+          "no": "Appen lar lyset (eller alle lysene i gruppen) være i fred til neste gang det slås av. Nyttig for nattlys som styres av bevegelse."
+        },
+        "args": [
+          {
+            "name": "target",
+            "type": "autocomplete",
+            "placeholder": {
+              "en": "Choose a light or group",
+              "no": "Velg et lys eller en gruppe"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
