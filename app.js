@@ -459,6 +459,25 @@ class CircadianApp extends Homey.App {
     }
   }
 
+  /** Drop and recreate one light's listeners, e.g. after they missed an event. */
+  async _resetCapabilityListeners(deviceId) {
+    (this._capInstances[deviceId] || []).forEach((inst) => {
+      try { inst.destroy(); } catch (err) { /* ignore */ }
+    });
+    delete this._capInstances[deviceId];
+    // An uncached fetch replaces the cached device object, so the new
+    // listeners attach to a fresh one with up-to-date values.
+    const fresh = await this.homeyApi.devices.getDevice({ id: deviceId, $cache: false });
+    await this._syncCapabilityListeners();
+    const state = this._capState[deviceId];
+    const caps = (fresh && fresh.capabilitiesObj) || {};
+    if (state) {
+      ['onoff', 'dim', 'light_temperature'].forEach((cap) => {
+        if (caps[cap]) state[cap] = caps[cap].value;
+      });
+    }
+  }
+
   _persistLocks() {
     try {
       this.homey.settings.set('locks', this.locks);
@@ -712,6 +731,30 @@ class CircadianApp extends Homey.App {
           return;
         }
         if (this.locks[deviceId]) return; // adjusted manually during the wait
+
+        // Our live state comes from capability listeners, and getDevice()
+        // returns the same cached object while the socket is connected. If an
+        // off event was lost (e.g. the socket dropped), both still say "on"
+        // and our write would switch the light back on. Ask Homey directly.
+        let fresh;
+        try {
+          fresh = await this.homeyApi.devices.getDevice({ id: deviceId, $cache: false, $updateCache: false });
+        } catch (err) {
+          this.log(`Skipping "${name}" — could not read fresh state:`, err.message);
+          return;
+        }
+        const fc = (fresh && fresh.capabilitiesObj) || {};
+        const freshState = {
+          onoff: fc.onoff ? fc.onoff.value : undefined,
+          dim: fc.dim ? fc.dim.value : undefined,
+        };
+        if (this._isOffState(freshState)) {
+          this.log(`Skipping "${name}" — Homey reports it off, but our live state said on. Re-listening.`);
+          if (this._capState[deviceId]) Object.assign(this._capState[deviceId], freshState);
+          this._resetCapabilityListeners(deviceId)
+            .catch((err) => this.log(`Could not re-listen to "${name}":`, err.message));
+          return;
+        }
       }
 
       const cur = liveState();

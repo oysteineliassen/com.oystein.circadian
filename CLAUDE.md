@@ -41,6 +41,12 @@ skriv til ham på norsk. Han utvikler på Windows og har en Homey Pro (Early 202
 - **Mange lys tolker "sett dim" som "slå på".** Sjekk av-tilstand rett før
   skriving (settle-vent på 3 s), og slå lyset av igjen hvis det ble slått av
   mens appen skrev (`_offAt`).
+- **Cachen kan lyve.** Mens socketen er tilkoblet returnerer
+  `devices.getDevice()` det cachede objektet, så den og `_capState` kan begge
+  si "på" hvis en av-hendelse gikk tapt. Rett før skriving hentes fersk
+  tilstand med `getDevice({ id, $cache: false, $updateCache: false })`. Sier
+  den av, hoppes lyset over og lytterne bygges på nytt
+  (`_resetCapabilityListeners`).
 - Låser: `true` = manuell (til opplåsing), `'untilOff'` = pause til lyset
   slås av.
 - `light_temperature`: 0 = kaldest, 1 = varmest. Sett `light_mode` til
