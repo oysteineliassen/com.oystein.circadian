@@ -64,9 +64,67 @@
     "getSimulationStatus": {
       "method": "GET",
       "path": "/simulate-status"
+    },
+    "getStatus": {
+      "method": "GET",
+      "path": "/status"
     }
   },
   "flow": {
+    "triggers": [
+      {
+        "id": "light-locked",
+        "title": {
+          "en": "A light was locked after a manual adjustment",
+          "no": "Et lys ble låst etter manuell justering"
+        },
+        "hint": {
+          "en": "Runs when you change the brightness or colour of a light yourself, and the app stops controlling it.",
+          "no": "Kjører når du endrer lysstyrke eller farge på et lys selv, og appen slutter å styre det."
+        },
+        "tokens": [
+          {
+            "name": "light",
+            "type": "string",
+            "title": {
+              "en": "Light",
+              "no": "Lys"
+            },
+            "example": {
+              "en": "Living room lamp",
+              "no": "Stuelampe"
+            }
+          }
+        ]
+      }
+    ],
+    "conditions": [
+      {
+        "id": "is-locked",
+        "title": {
+          "en": "Light !{{is|is not}} locked",
+          "no": "Lyset !{{er|er ikke}} låst"
+        },
+        "titleFormatted": {
+          "en": "[[device]] !{{is|is not}} locked",
+          "no": "[[device]] !{{er|er ikke}} låst"
+        },
+        "hint": {
+          "en": "Locked means the app has stopped controlling the light, after a manual adjustment or a pause.",
+          "no": "Låst betyr at appen har sluttet å styre lyset, etter manuell justering eller pause."
+        },
+        "args": [
+          {
+            "name": "device",
+            "type": "autocomplete",
+            "placeholder": {
+              "en": "Choose a light",
+              "no": "Velg et lys"
+            }
+          }
+        ]
+      }
+    ],
     "actions": [
       {
         "id": "resume-circadian",
@@ -142,6 +200,51 @@
             "placeholder": {
               "en": "Choose a light or group",
               "no": "Velg et lys eller en gruppe"
+            }
+          }
+        ]
+      },
+      {
+        "id": "set-group-enabled",
+        "title": {
+          "en": "Switch circadian lighting on or off for a group",
+          "no": "Skru døgnrytme av eller på for en gruppe"
+        },
+        "titleFormatted": {
+          "en": "Switch circadian lighting [[state]] for [[group]]",
+          "no": "Skru døgnrytme [[state]] for [[group]]"
+        },
+        "hint": {
+          "en": "While off, the app leaves the group's lights alone, e.g. for a movie or guests.",
+          "no": "Mens den er av, lar appen lysene i gruppen være i fred, f.eks. ved film eller gjester."
+        },
+        "args": [
+          {
+            "name": "state",
+            "type": "dropdown",
+            "values": [
+              {
+                "id": "on",
+                "label": {
+                  "en": "on",
+                  "no": "på"
+                }
+              },
+              {
+                "id": "off",
+                "label": {
+                  "en": "off",
+                  "no": "av"
+                }
+              }
+            ]
+          },
+          {
+            "name": "group",
+            "type": "autocomplete",
+            "placeholder": {
+              "en": "Choose a group",
+              "no": "Velg en gruppe"
             }
           }
         ]

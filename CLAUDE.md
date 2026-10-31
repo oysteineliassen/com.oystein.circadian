@@ -7,17 +7,21 @@ skriv til ham på norsk. Han utvikler på Windows og har en Homey Pro (Early 202
 
 - Endringer pushes til `main` på GitHub. Øystein kjører `oppdater.ps1` på PC-en,
   som gjør `git pull` + `npm install` + `homey app install`.
-- Du kan ikke teste mot ekte Homey. Test logikk med mock-objekter i Node
-  (stub `homey`, `homey-api`, `suncalc` i en midlertidig `node_modules`).
-- Sjekk syntaks: `node --check app.js`, og trekk ut `<script>` fra
-  `settings/index.html` og kjør `node --check` på det.
+- Du kan ikke teste mot ekte Homey. Kjør `node test/run-tests.js` (falske
+  `homey`, `homey-api`, `suncalc`; sjekker også syntaks i innstillingssiden og
+  at Flow-kort/API-ruter i `app.json` finnes i koden). Legg til tester for ny
+  logikk der.
+- GitHub Actions (`.github/workflows/test.yml`) kjører testene og
+  `homey app validate --level debug` på hver push. Sjekk at den er grønn.
 - Hold `README.md` oppdatert når funksjoner eller Flow-kort endres.
 
 ## Filer
 
 - `app.js`: all logikk. Tick hvert 2. minutt, gruppeverdier, skriving til lys,
   låser, simulering, Flow-kort.
-- `lib/circadian.js`: rene funksjoner på "minutter siden midnatt" (0–1439).
+- `lib/circadian.js`: rene funksjoner på "minutter siden midnatt" (0–1439),
+  inkl. `groupValues()` (brukes av tick, Flow og simulering) og helgeregelen.
+- `test/run-tests.js`: tester. Ekskludert fra appen via `.homeyignore`.
 - `api.js`: tynne ruter for innstillingssiden.
 - `settings/index.html`: innstillingssiden (vanilla JS, ingen byggesteg).
 - `app.json`: manifest, API-ruter og Flow-kort.
@@ -52,3 +56,13 @@ skriv til ham på norsk. Han utvikler på Windows og har en Homey Pro (Early 202
 - `light_temperature`: 0 = kaldest, 1 = varmest. Sett `light_mode` til
   `'temperature'` først på lys som har det.
 - Lys uten `light_temperature` skal bare få dim.
+- **Fade** (`fadeSeconds`) er begrenset til 5 s: lys som rapporterer
+  mellomverdier under fading må komme innenfor `LOCK_GRACE_MS` (8 s), ellers
+  låses de som manuelt justert. Ved påslag brukes ingen fade.
+- **Påslag** (`_onSwitchedOn`) venter 1 s før skriving, så en flow som slår på
+  og deretter pauser et lys rekker å pause det først.
+- **Flow-tokens** kan ikke endre tittel; ved nytt gruppenavn fjernes tokenet og
+  lages på nytt (`_doUpdateTokens`, kjøres i kø).
+- **Mørk modus** i innstillingssiden: bruk CSS-variablene i `:root`, ikke
+  faste farger. SVG-farger settes med `el.style.fill/stroke = 'var(--x)'`
+  (presentasjonsattributter støtter ikke `var()`).

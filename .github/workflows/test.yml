@@ -1,0 +1,28 @@
+name: Test
+
+# Runs on every push to GitHub, so a broken change shows up here
+# (a red cross on the commit) before oppdater.ps1 installs it on Homey.
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Installer avhengigheter
+        run: npm install --omit=dev
+      - name: Sjekk syntaks
+        run: |
+          node --check app.js
+          node --check api.js
+          node --check lib/circadian.js
+      - name: Kjør tester
+        run: node test/run-tests.js
+      - name: Valider appen (som homey app install gjør)
+        run: npx --yes homey app validate --level debug

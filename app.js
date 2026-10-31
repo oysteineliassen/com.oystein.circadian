@@ -3,11 +3,15 @@
 const Homey = require('homey');
 const { HomeyAPI } = require('homey-api');
 const SunCalc = require('suncalc');
-const { calculateCircadianValue, calculateKeyframeValues, zonedMinutesOfDay } = require('./lib/circadian');
+const {
+  groupValues, isWeekendPlan, zonedMinutesOfDay, zonedWeekday,
+} = require('./lib/circadian');
 
 const UPDATE_INTERVAL_MS = 2 * 60 * 1000; // recompute every 2 minutes
 const LOCK_GRACE_MS = 8000; // ignore device updates for this long after we write a value ourselves
 const SETTLE_MS = 3000; // wait this long and re-check "off" right before writing, to catch a just-missed off event
+const TURN_ON_DELAY_MS = 1000; // after a light switches on, give a flow time to pause it before we set values
+const MAX_FADE_SECONDS = 5; // longer fades make lights report in-between values after LOCK_GRACE_MS
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -31,6 +35,12 @@ const DEFAULT_GROUP = {
   // 'keyframes' mode settings
   keyframes: [], // [{ time: 'HH:mm', temp: 0..1, dim: 0..1 }]
   skipOffLights: true,
+  fadeSeconds: 2, // let lights glide to new values during the regular updates
+  // Weekend plan, Friday 12:00 to Sunday 12:00 (see isWeekendPlan)
+  weekendEnabled: false,
+  weekendWakeTime: '08:30',
+  weekendSleepTime: '23:30',
+  weekendKeyframes: [], // empty = use the weekday keyframes
 };
 
 const DEFAULT_CONFIG = {
@@ -58,6 +68,9 @@ class CircadianApp extends Homey.App {
     this._capInstances = {}; // deviceId -> [DeviceCapability]
     this._deviceNames = {};
     this._offAt = {}; // deviceId -> time we last saw the light go off
+    this._turningOn = {}; // deviceId -> true while values are being set after a switch-on
+    this._status = {}; // deviceId -> { at, action, text } last thing the app did with the light
+    this._tokens = {}; // token id -> { token, title }
     this._simulationRunning = false;
 
     // The app's own process may run in a different system time zone (often
@@ -161,6 +174,39 @@ class CircadianApp extends Homey.App {
     } catch (err) {
       this.log('Could not register "pause-until-off" flow card:', err.message);
     }
+
+    const groupAutocomplete = async (query) => {
+      const q = (query || '').toLowerCase();
+      return (this.config.groups || [])
+        .filter((g) => g && (g.name || '').toLowerCase().includes(q))
+        .map((g) => ({ id: g.id, name: g.name || 'Uten navn' }));
+    };
+
+    try {
+      const card = this.homey.flow.getActionCard('set-group-enabled');
+      card.registerRunListener(async (args) => {
+        if (args && args.group && args.group.id) {
+          await this.setGroupEnabled(args.group.id, args.state === 'on');
+        }
+        return true;
+      });
+      card.registerArgumentAutocompleteListener('group', groupAutocomplete);
+    } catch (err) {
+      this.log('Could not register "set-group-enabled" flow card:', err.message);
+    }
+
+    try {
+      const card = this.homey.flow.getConditionCard('is-locked');
+      card.registerRunListener(async (args) => !!(args && args.device && this.locks[args.device.id]));
+      card.registerArgumentAutocompleteListener('device', async (query) => {
+        const q = (query || '').toLowerCase();
+        return (await this.getControllableDevices())
+          .filter((d) => d.name.toLowerCase().includes(q))
+          .map((d) => ({ id: d.id, name: d.name }));
+      });
+    } catch (err) {
+      this.log('Could not register "is-locked" flow card:', err.message);
+    }
   }
 
   _migrateConfig(saved) {
@@ -194,12 +240,103 @@ class CircadianApp extends Homey.App {
     await this.homey.settings.set('config', this.config);
     await this._syncCapabilityListeners();
     await this._tick();
+    await this._updateTokens();
     return this.config;
   }
 
   async applyNow() {
     await this._tick();
     return { appliedAt: new Date().toISOString() };
+  }
+
+  /** For the status list on the settings page. */
+  async getStatus() {
+    const now = this._now();
+    const sun = this._sunMinutes();
+    return {
+      enabled: this.config.enabled !== false,
+      weekend: now.weekend,
+      groups: (this.config.groups || []).filter(Boolean).map((g) => {
+        const v = groupValues(g, now.minutes, sun, now.weekend);
+        return {
+          id: g.id,
+          name: g.name,
+          enabled: g.enabled !== false,
+          weekend: !!(now.weekend && g.weekendEnabled),
+          temp: v.temp,
+          dim: v.dim,
+          lights: (g.deviceIds || []).map((id) => {
+            const st = this._capState[id];
+            const lock = this.locks[id];
+            return {
+              id,
+              name: this._deviceNames[id] || id,
+              on: st && (st.onoff != null || st.dim != null) ? !this._isOffState(st) : null,
+              dim: st && st.dim != null ? st.dim : null,
+              temp: st && st.light_temperature != null ? st.light_temperature : null,
+              lock: lock === 'untilOff' ? 'untilOff' : (lock ? 'manual' : null),
+              status: this._status[id] || null,
+            };
+          }),
+        };
+      }),
+    };
+  }
+
+  /** Flow action: switch circadian control for one group on or off. */
+  async setGroupEnabled(groupId, enabled) {
+    const group = (this.config.groups || []).find((g) => g && g.id === groupId);
+    if (!group) throw new Error('Fant ikke gruppen');
+    group.enabled = !!enabled;
+    try {
+      this.homey.settings.set('config', this.config);
+    } catch (err) {
+      this.log('Could not save config:', err.message);
+    }
+    this.log(`Group "${group.name}" ${enabled ? 'enabled' : 'disabled'} from a flow.`);
+    if (enabled) await this._tick();
+    return true;
+  }
+
+  /**
+   * Global Flow tokens with each group's current values, as percentages
+   * (warmth 0 = coldest, 100 = warmest). Runs one at a time, since ticks
+   * and saves can overlap and a token can only be created once.
+   */
+  _updateTokens(now, sun) {
+    this._tokenQueue = (this._tokenQueue || Promise.resolve())
+      .then(() => this._doUpdateTokens(now || this._now(), sun || this._sunMinutes()))
+      .catch((err) => this.log('Could not update flow tokens:', err.message));
+    return this._tokenQueue;
+  }
+
+  async _doUpdateTokens(now, sun) {
+    const wanted = {};
+    (this.config.groups || []).forEach((g) => {
+      if (!g || !g.id) return;
+      const v = groupValues(g, now.minutes, sun, now.weekend);
+      const name = g.name || 'Uten navn';
+      if (v.temp != null) wanted[`${g.id}-temp`] = { title: `${name}: varme (%)`, value: Math.round(v.temp * 100) };
+      if (v.dim != null) wanted[`${g.id}-dim`] = { title: `${name}: lysstyrke (%)`, value: Math.round(v.dim * 100) };
+    });
+
+    // Remove tokens for deleted groups, and renamed ones (a token's title is fixed)
+    for (const [id, t] of Object.entries(this._tokens)) {
+      if (wanted[id] && wanted[id].title === t.title) continue;
+      delete this._tokens[id];
+      await this.homey.flow.unregisterToken(t.token)
+        .catch((err) => this.log(`Could not remove flow token ${id}:`, err.message));
+    }
+
+    for (const [id, w] of Object.entries(wanted)) {
+      if (!this._tokens[id]) {
+        const token = await this.homey.flow.createToken(id, { type: 'number', title: w.title, value: w.value });
+        this._tokens[id] = { token, title: w.title, value: w.value };
+      } else if (this._tokens[id].value !== w.value) {
+        await this._tokens[id].token.setValue(w.value);
+        this._tokens[id].value = w.value;
+      }
+    }
   }
 
   async resumeDevice(deviceId) {
@@ -240,19 +377,8 @@ class CircadianApp extends Homey.App {
     const stepMs = Math.round((durationSeconds * 1000) / steps);
     const minutesPerStep = 1440 / steps;
 
-    let sunriseMinutes = null;
-    let sunsetMinutes = null;
-    try {
-      const lat = this.homey.geolocation.getLatitude();
-      const lng = this.homey.geolocation.getLongitude();
-      if (lat != null && lng != null) {
-        const times = SunCalc.getTimes(new Date(), lat, lng);
-        sunriseMinutes = zonedMinutesOfDay(times.sunrise, this.timeZone);
-        sunsetMinutes = zonedMinutesOfDay(times.sunset, this.timeZone);
-      }
-    } catch (err) {
-      this.log('Simulation: sun times unavailable:', err.message);
-    }
+    const sun = this._sunMinutes();
+    const weekday = zonedWeekday(new Date(), this.timeZone);
 
     // Resolve devices once. After homeyApi.devices.connect() (called in onInit)
     // these objects are kept live-updated over the websocket, so reading
@@ -294,37 +420,10 @@ class CircadianApp extends Homey.App {
           // the exact kind of zone mismatch this simulator is meant to catch.
           const simMinutes = Math.round(i * minutesPerStep) % 1440;
 
-          let tempValue;
-          let dimValue = null;
-
-          if (group.mode === 'keyframes' && Array.isArray(group.keyframes) && group.keyframes.length > 0) {
-            const result = calculateKeyframeValues(simMinutes, group.keyframes);
-            tempValue = result.temp;
-            dimValue = result.dim;
-          } else {
-            tempValue = calculateCircadianValue(simMinutes, {
-              sunriseMinutes,
-              sunsetMinutes,
-              wakeTime: group.wakeTime,
-              sleepTime: group.sleepTime,
-              transitionMinutes: group.transitionMinutes,
-              useSunTimes: group.useSunTimes,
-              warmValue: group.warmValue,
-              coolValue: group.coolValue,
-            });
-            if (group.adjustBrightness) {
-              dimValue = calculateCircadianValue(simMinutes, {
-                sunriseMinutes,
-                sunsetMinutes,
-                wakeTime: group.wakeTime,
-                sleepTime: group.sleepTime,
-                transitionMinutes: group.transitionMinutes,
-                useSunTimes: group.useSunTimes,
-                warmValue: group.nightDim,
-                coolValue: group.dayDim,
-              });
-            }
-          }
+          // Simulate today: the weekend plan kicks in where it would today
+          const { temp: tempValue, dim: dimValue } = groupValues(
+            group, simMinutes, sun, isWeekendPlan(weekday, simMinutes),
+          );
 
           const hh = String(Math.floor(simMinutes / 60)).padStart(2, '0');
           const mm = String(simMinutes % 60).padStart(2, '0');
@@ -535,6 +634,8 @@ class CircadianApp extends Homey.App {
       }
     }
 
+    if (wasOff && !isOff) this._onSwitchedOn(deviceId);
+
     // Manual-lock detection: only colour/brightness adjustments count, not
     // simply switching the light on or off.
     if (cap === 'onoff') return;
@@ -554,7 +655,51 @@ class CircadianApp extends Homey.App {
       this.locks[deviceId] = true;
       this._persistLocks();
       this.log(`"${name}" was adjusted manually (${cap} ${prev} -> ${value}) — locked out of automatic control.`);
+      this._noteStatus(deviceId, 'locked', 'Låst etter manuell justering');
+      this._triggerLocked(deviceId, name);
     }
+  }
+
+  _triggerLocked(deviceId, name) {
+    try {
+      this.homey.flow.getTriggerCard('light-locked')
+        .trigger({ light: name })
+        .catch((err) => this.log('Could not run "light-locked" trigger:', err.message));
+    } catch (err) {
+      this.log('Could not run "light-locked" trigger:', err.message);
+    }
+  }
+
+  /** The enabled groups a light belongs to (the first one decides its values). */
+  _groupsFor(deviceId) {
+    return (this.config.groups || []).filter((g) => g && g.enabled !== false
+      && Array.isArray(g.deviceIds) && g.deviceIds.includes(deviceId));
+  }
+
+  /**
+   * A light was just switched on: give it the values the schedule has right
+   * now, instead of leaving it at yesterday's colour until the next tick.
+   * Waits TURN_ON_DELAY_MS first, so a flow that switches a light on and
+   * then pauses it (e.g. a night light) gets to do so before we write.
+   */
+  _onSwitchedOn(deviceId) {
+    if (this._simulationRunning || !this.config || this.config.enabled === false) return;
+    if (this.locks[deviceId] || this._turningOn[deviceId]) return;
+    // Switched on by our own write (e.g. the "turn on group" flow card)
+    const lastApplied = this._lastAppliedAt[deviceId];
+    if (lastApplied && (Date.now() - lastApplied) < LOCK_GRACE_MS) return;
+    const group = this._groupsFor(deviceId)[0];
+    if (!group) return;
+
+    this._turningOn[deviceId] = true;
+    this.homey.setTimeout(() => {
+      Promise.resolve().then(async () => {
+        if (this.locks[deviceId]) return;
+        const { temp, dim } = this._groupValuesNow(group);
+        await this._applyToDevice(deviceId, temp, dim, group.skipOffLights !== false, { quick: true });
+      }).catch((err) => this.log(`Could not set values on switch-on for ${deviceId}:`, err.message))
+        .then(() => { delete this._turningOn[deviceId]; });
+    }, TURN_ON_DELAY_MS);
   }
 
   // --- core loop ---
@@ -576,28 +721,17 @@ class CircadianApp extends Homey.App {
     return { sunriseMinutes: null, sunsetMinutes: null };
   }
 
-  /** The { temp, dim } a group's schedule calls for at nowMinutes (dim may be null). */
-  _groupValues(group, nowMinutes, sun) {
-    if (group.mode === 'keyframes' && Array.isArray(group.keyframes) && group.keyframes.length > 0) {
-      return calculateKeyframeValues(nowMinutes, group.keyframes);
-    }
-    const common = {
-      sunriseMinutes: sun.sunriseMinutes,
-      sunsetMinutes: sun.sunsetMinutes,
-      wakeTime: group.wakeTime,
-      sleepTime: group.sleepTime,
-      transitionMinutes: group.transitionMinutes,
-      useSunTimes: group.useSunTimes,
-    };
-    const temp = calculateCircadianValue(nowMinutes, Object.assign({}, common, {
-      warmValue: group.warmValue, coolValue: group.coolValue,
-    }));
-    const dim = group.adjustBrightness
-      ? calculateCircadianValue(nowMinutes, Object.assign({}, common, {
-        warmValue: group.nightDim, coolValue: group.dayDim,
-      }))
-      : null;
-    return { temp, dim };
+  /** "Now" on the Homey's clock: minutes since midnight, and whether the weekend plan applies. */
+  _now() {
+    const date = new Date();
+    const minutes = zonedMinutesOfDay(date, this.timeZone);
+    return { minutes, weekend: isWeekendPlan(zonedWeekday(date, this.timeZone), minutes) };
+  }
+
+  /** The { temp, dim } a group's schedule calls for right now (dim may be null). */
+  _groupValuesNow(group) {
+    const now = this._now();
+    return groupValues(group, now.minutes, this._sunMinutes(), now.weekend);
   }
 
   async _tick() {
@@ -606,22 +740,32 @@ class CircadianApp extends Homey.App {
     if (!Array.isArray(this.config.groups) || this.config.groups.length === 0) return;
 
     const sun = this._sunMinutes();
-    const nowMinutes = zonedMinutesOfDay(new Date(), this.timeZone);
+    const now = this._now();
 
     for (const group of this.config.groups) {
       if (!group || group.enabled === false) continue;
       if (!Array.isArray(group.deviceIds) || group.deviceIds.length === 0) continue;
 
-      const { temp: tempValue, dim: dimValue } = this._groupValues(group, nowMinutes, sun);
+      const { temp: tempValue, dim: dimValue } = groupValues(group, now.minutes, sun, now.weekend);
 
       // Run devices in this group in parallel rather than one after another,
       // so the settle delay in _applyValuesToDevice (see there) doesn't add
       // up across many lights.
       await Promise.all(group.deviceIds.map((deviceId) => {
         if (this.locks[deviceId]) return null; // manually adjusted, waiting to be resumed
-        return this._applyToDevice(deviceId, tempValue, dimValue, group.skipOffLights !== false);
+        return this._applyToDevice(deviceId, tempValue, dimValue, group.skipOffLights !== false, {
+          fadeMs: this._fadeMs(group),
+        });
       }));
     }
+
+    this._updateTokens(now, sun);
+  }
+
+  _fadeMs(group) {
+    const s = Number(group.fadeSeconds != null ? group.fadeSeconds : DEFAULT_GROUP.fadeSeconds);
+    if (!Number.isFinite(s) || s <= 0) return 0;
+    return Math.round(Math.min(s, MAX_FADE_SECONDS) * 1000);
   }
 
   /**
@@ -641,7 +785,7 @@ class CircadianApp extends Homey.App {
       this.log('Could not persist locks:', err.message);
     }
 
-    const { temp, dim } = this._groupValues(group, zonedMinutesOfDay(new Date(), this.timeZone), this._sunMinutes());
+    const { temp, dim } = this._groupValuesNow(group);
     this.log(`Turning on group "${group.name}" at temp=${temp}, dim=${dim}.`);
 
     await Promise.all(deviceIds.map(async (deviceId) => {
@@ -682,22 +826,39 @@ class CircadianApp extends Homey.App {
     return true;
   }
 
-  async _applyToDevice(deviceId, value, dimValue, skipOffLights) {
+  async _applyToDevice(deviceId, value, dimValue, skipOffLights, opts) {
     try {
       const device = await this.homeyApi.devices.getDevice({ id: deviceId });
       if (!device) return;
-      await this._applyValuesToDevice(deviceId, device, value, dimValue, skipOffLights);
+      await this._applyValuesToDevice(deviceId, device, value, dimValue, skipOffLights, opts);
     } catch (err) {
       this.log(`Failed to update device ${deviceId}:`, err.message);
+      this._noteStatus(deviceId, 'error', 'Feil: ' + err.message);
     }
+  }
+
+  /**
+   * Remember the last thing the app did with a light, for the status list on
+   * the settings page. `applied` is set only when values were actually sent.
+   */
+  _noteStatus(deviceId, check, text, applied) {
+    const entry = this._status[deviceId] || (this._status[deviceId] = {});
+    entry.checkedAt = Date.now();
+    entry.check = check;
+    entry.text = text;
+    if (applied) entry.applied = Object.assign({ at: Date.now() }, applied);
   }
 
   /**
    * Writes the given values to an already-resolved device object. Kept
    * separate from _applyToDevice so the simulation loop can reuse cached
    * device objects instead of re-fetching one from Homey on every step.
+   *
+   * opts.fadeMs: let the light glide to the new values over this long.
+   * opts.quick: the light was just switched on; skip the settle wait so the
+   * right values arrive straight away (it's on, so there's nothing to catch).
    */
-  async _applyValuesToDevice(deviceId, device, value, dimValue, skipOffLights) {
+  async _applyValuesToDevice(deviceId, device, value, dimValue, skipOffLights, opts = {}) {
     try {
       if (!device || !device.capabilitiesObj) return;
 
@@ -718,6 +879,7 @@ class CircadianApp extends Homey.App {
 
       if (skipOffLights && this._isOffState(liveState())) {
         this.log(`Skipping "${name}" — it is off.`);
+        this._noteStatus(deviceId, 'off', 'Av, ikke rørt');
         return; // leave lights that are switched off alone
       }
 
@@ -725,9 +887,10 @@ class CircadianApp extends Homey.App {
       // slip through; wait briefly and re-check the live state. Skipped
       // during the fast 24h simulation, which needs to run in ~1 minute.
       if (skipOffLights && !this._simulationRunning) {
-        await sleep(SETTLE_MS);
+        if (!opts.quick) await sleep(SETTLE_MS);
         if (this._isOffState(liveState())) {
           this.log(`Skipping "${name}" — went off during settle check.`);
+          this._noteStatus(deviceId, 'off', 'Av, ikke rørt');
           return;
         }
         if (this.locks[deviceId]) return; // adjusted manually during the wait
@@ -741,6 +904,7 @@ class CircadianApp extends Homey.App {
           fresh = await this.homeyApi.devices.getDevice({ id: deviceId, $cache: false, $updateCache: false });
         } catch (err) {
           this.log(`Skipping "${name}" — could not read fresh state:`, err.message);
+          this._noteStatus(deviceId, 'error', 'Fikk ikke lest tilstanden fra Homey');
           return;
         }
         const fc = (fresh && fresh.capabilitiesObj) || {};
@@ -750,6 +914,7 @@ class CircadianApp extends Homey.App {
         };
         if (this._isOffState(freshState)) {
           this.log(`Skipping "${name}" — Homey reports it off, but our live state said on. Re-listening.`);
+          this._noteStatus(deviceId, 'stale', 'Av (appen trodde den var på, rettet opp)');
           if (this._capState[deviceId]) Object.assign(this._capState[deviceId], freshState);
           this._resetCapabilityListeners(deviceId)
             .catch((err) => this.log(`Could not re-listen to "${name}":`, err.message));
@@ -763,10 +928,16 @@ class CircadianApp extends Homey.App {
       const needDim = dimValue != null && device.capabilitiesObj.dim
         && (cur.dim == null || Math.abs(cur.dim - dimValue) > 0.005);
 
-      if (!needTemp && !needDim) return; // already at the right values
+      if (!needTemp && !needDim) {
+        this._noteStatus(deviceId, 'ok', 'Følger døgnrytmen');
+        return; // already at the right values
+      }
+
+      const fadeMs = opts.fadeMs > 0 ? opts.fadeMs : 0;
+      const capOpts = fadeMs ? { duration: fadeMs } : undefined;
 
       this.log(`Applying to "${name}": temp=${needTemp ? value : '-'}, dim=${needDim ? dimValue : '-'} `
-        + `(live: onoff=${cur.onoff}, dim=${cur.dim})`);
+        + `(live: onoff=${cur.onoff}, dim=${cur.dim}${fadeMs ? `, fade ${fadeMs} ms` : ''})`);
 
       // Mark the write BEFORE sending, so the echo coming back through the
       // capability listener is never mistaken for a manual adjustment.
@@ -787,30 +958,39 @@ class CircadianApp extends Homey.App {
       // this write — they still follow the group's dim curve below.
       if (needTemp && !offDuringWrite()) {
         written.light_temperature = value;
-        await device.setCapabilityValue('light_temperature', value);
+        await device.setCapabilityValue('light_temperature', value, capOpts);
         this._lastAppliedAt[deviceId] = Date.now();
       }
 
       if (needDim && !offDuringWrite()) {
         written.dim = dimValue;
-        await device.setCapabilityValue('dim', dimValue)
+        await device.setCapabilityValue('dim', dimValue, capOpts)
           .catch((err) => this.log(`Could not set dim on ${deviceId}:`, err.message));
         this._lastAppliedAt[deviceId] = Date.now();
+      }
+
+      if (!this._simulationRunning) {
+        this._noteStatus(deviceId, 'ok', opts.quick ? 'Satt ved påslag' : 'Følger døgnrytmen', {
+          temp: needTemp ? value : null,
+          dim: needDim ? dimValue : null,
+        });
       }
 
       // Many lights treat "set brightness/colour" as "switch on". If an off
       // came in while we were writing, our write may have switched the light
       // back on — so switch it off again to honour whoever turned it off.
       if (skipOffLights && !this._simulationRunning) {
-        await sleep(1500); // give the off-event a moment to arrive
+        await sleep(1500 + fadeMs); // give the off-event a moment to arrive
         if (offDuringWrite() && device.capabilitiesObj.onoff) {
           this.log(`"${name}" was switched off while we were writing — switching it off again.`);
+          this._noteStatus(deviceId, 'off', 'Slått av mens appen skrev, slått av igjen');
           await device.setCapabilityValue('onoff', false)
             .catch((err) => this.log(`Could not switch off ${deviceId}:`, err.message));
         }
       }
     } catch (err) {
       this.log(`Failed to update device ${deviceId}:`, err.message);
+      this._noteStatus(deviceId, 'error', 'Feil: ' + err.message);
     }
   }
 

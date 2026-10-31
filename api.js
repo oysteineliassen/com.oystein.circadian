@@ -28,4 +28,7 @@ module.exports = {
   async getSimulationStatus({ homey }) {
     return homey.app.getSimulationStatus();
   },
+  async getStatus({ homey }) {
+    return homey.app.getStatus();
+  },
 };

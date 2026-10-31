@@ -11,16 +11,39 @@ solnedgang, eller egne sjekkpunkter på en 24-timers klokke.
     soloppgang/solnedgang (eller faste klokkeslett). Lysstyrke valgfritt.
   - *Manuelle punkter*: sjekkpunkter på en klokke med varme og lysstyrke.
     Verdiene glir jevnt mellom punktene, også over midnatt.
+- **Riktige verdier ved påslag**: slår du på et lys, får det fargen og
+  lysstyrken døgnrytmen har akkurat nå, i stedet for å vente på neste runde
+  (hvert 2. minutt).
+- **Egen plan for helg** (per gruppe): gjelder fra fredag kl. 12 til søndag
+  kl. 12, altså fredag og lørdag kveld og lørdag og søndag morgen. Søndag
+  kveld følger hverdagsplanen. I *Følg sol* settes egne våkne- og
+  legge seg-tider, i *Manuelle punkter* egne sjekkpunkter.
+- **Myk overgang** (per gruppe, 0–5 sekunder): lysene glir over til nye
+  verdier i stedet for å hoppe, på lys som støtter det.
 - **Lys uten fargetemperatur** kan være med og følger bare lysstyrkekurven.
 - **Ikke rør lys som er slått av** (per gruppe).
 - **Lås ved manuell justering**: dimmer eller endrer du farge selv, står
   lyset urørt til du låser det opp.
 - **Simulering**: kjører hele døgnet på ca. 1 minutt på de ekte lysene.
+- **Status** øverst på innstillingssiden: hvert lys, om det er på, om det er
+  låst, og hva appen sist gjorde med det.
+- **Mørk modus** på innstillingssiden, etter innstillingen på telefonen eller PC-en.
+- **Tokens** for hver gruppe: «[gruppe]: varme (%)» og «[gruppe]: lysstyrke (%)»
+  (0 = kaldest, 100 = varmest), til bruk i andre flows.
 
-### Flow-handlinger
+### Flow-kort
 
-| Handling | Hva den gjør |
+| Når … | Hva den gjør |
 |---|---|
+| Et lys ble låst etter manuell justering | Kjører når du endrer lysstyrke eller farge selv. Token: lysets navn |
+
+| Og … | Hva den sjekker |
+|---|---|
+| [lys] er / er ikke låst | Om appen har sluttet å styre lyset (manuell lås eller pause) |
+
+| Så … | Hva den gjør |
+|---|---|
+| Skru døgnrytme av/på for [gruppe] | Mens den er av, lar appen lysene i gruppen være i fred |
 | Aktiver døgnrytmestyring (alle lys) | Låser opp alle lys |
 | Aktiver døgnrytmestyring for ett lys | Låser opp ett lys |
 | Slå på [gruppe] og start døgnrytme | Slår på alle lys i gruppen med verdiene døgnrytmen har nå, og låser dem opp |
@@ -37,6 +60,13 @@ C:\Homeyprojects\com.oystein.circadian\oppdater.ps1
 Skriptet henter siste versjon fra GitHub, installerer avhengigheter og kjører
 `homey app install`. PC-en må være på samme nettverk som Homey. Sier den at
 Homey er offline, kjør `homey logout` og `homey login` først.
+
+## Automatisk testing
+
+Hver gang en endring pushes til GitHub, kjører GitHub Actions testene i
+`test/run-tests.js` og `homey app validate`. Resultatet vises som en grønn
+hake eller rødt kryss ved commiten på GitHub. Testene kan også kjøres lokalt
+med `node test/run-tests.js`.
 
 ## Se loggen
 
