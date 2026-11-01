@@ -26,6 +26,10 @@
       --ok: #2e8b57;
       --sun: #f2b233;
       --shadow: 0 1px 3px rgba(20, 30, 50, 0.08);
+      /* Daylight is drawn near-white: outline it, and put the clock on a
+         darker disc, so it never melts into a white page */
+      --edge: rgba(20, 30, 50, 0.22);
+      --dial-bg: #d9dee6;
     }
     @media (prefers-color-scheme: dark) {
       :root {
@@ -42,6 +46,8 @@
         --warn: #f0a640;
         --ok: #5fd08f;
         --shadow: none;
+        --edge: rgba(255, 255, 255, 0.10);
+        --dial-bg: #14181e;
       }
     }
     :root.homey-dark-mode {
@@ -58,13 +64,15 @@
       --warn: #f0a640;
       --ok: #5fd08f;
       --shadow: none;
+      --edge: rgba(255, 255, 255, 0.10);
+      --dial-bg: #14181e;
     }
 
     * { box-sizing: border-box; }
     body { margin: 0; padding: 12px 12px 88px; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; font-size: 15px; line-height: 1.4; background: var(--bg); color: var(--text); }
-    h1, h2, h3 { margin: 0; }
-    h1 { font-size: 22px; }
-    h3 { font-size: 13px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+    html body h1, html body h2, html body h3 { margin: 0 !important; padding: 0 !important; color: var(--text) !important; font-family: inherit !important; font-weight: 700 !important; line-height: 1.25 !important; text-transform: none !important; letter-spacing: normal !important; }
+    html body h1 { font-size: 22px !important; }
+    html body h3 { font-size: 13px !important; color: var(--muted) !important; font-weight: 600 !important; text-transform: uppercase !important; letter-spacing: .04em !important; }
     .num { font-variant-numeric: tabular-nums; }
     .muted { color: var(--muted); }
     .small { font-size: 13px; }
@@ -77,8 +85,9 @@
     html body button.link { border: 0 !important; background: none !important; color: var(--accent) !important; padding: 4px 0 !important; }
     html body button.danger { color: var(--danger) !important; }
     button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-    input[type="text"], input[type="time"], input[type="number"] { font: inherit; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; }
-    input[type="time"], input[type="number"] { width: 96px; }
+    html body input[type="text"], html body input[type="time"], html body input[type="number"] { -webkit-appearance: none !important; appearance: none !important; font: inherit !important; height: auto !important; margin: 0 !important; box-shadow: none !important; background: var(--surface) !important; color: var(--text) !important; border: 1px solid var(--border) !important; border-radius: 6px !important; padding: 4px 6px !important; }
+    html body input[type="time"], html body input[type="number"] { width: 96px !important; }
+    html body label { font: inherit !important; color: inherit !important; text-transform: none !important; letter-spacing: normal !important; margin: 0 !important; padding: 0 !important; }
     input[type="range"] { width: 100%; accent-color: var(--accent); }
     input.temp-slider { -webkit-appearance: none; appearance: none; height: 12px; border-radius: 6px; outline: none; background: linear-gradient(to right, #c9e2ff 0%, #fff6ec 40%, #ffd6a0 70%, #ff9d3c 100%); }
     input.temp-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #fff; border: 2px solid #333; cursor: pointer; }
@@ -113,11 +122,11 @@
     .room.off .room-now, .room.off .strip, .room.off .lamps { opacity: .5; }
     .room-head { display: flex; align-items: center; gap: 10px; }
     .glow { width: 24px; height: 24px; border-radius: 50%; flex: none; }
-    .room-head h2 { font-size: 18px; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+    html body .room-head h2 { font-size: 18px !important; flex: 1; min-width: 0; overflow-wrap: anywhere; }
     .chip { font-size: 12px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px; white-space: nowrap; }
     .room-now { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
     .room-now .big { font-size: 20px; font-weight: 700; }
-    .strip { position: relative; height: 12px; border-radius: 6px; }
+    .strip { position: relative; height: 12px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--edge); }
     .strip .now { position: absolute; top: -4px; bottom: -4px; width: 3px; border-radius: 2px; background: var(--text); }
     .strip-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--faint); margin-top: -6px; }
     .lamps { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
@@ -135,7 +144,7 @@
 
     /* Room page */
     .back-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-    input.group-name { width: 100%; font-size: 22px; font-weight: 700; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; padding: 4px 0; }
+    html body input.group-name { width: 100% !important; font-size: 22px !important; font-weight: 700 !important; color: var(--text) !important; border: 0 !important; border-bottom: 1px solid var(--border) !important; border-radius: 0 !important; background: transparent !important; padding: 4px 0 !important; }
     .dial-wrap { display: grid; justify-items: center; gap: 6px; }
     svg.dial { width: 100%; max-width: 330px; height: auto; touch-action: none; user-select: none; -webkit-user-select: none; }
     svg.dial text { font-family: inherit; }
@@ -144,7 +153,7 @@
     .kf-list { display: grid; gap: 2px; font-size: 13px; }
     html body .kf-row { display: flex !important; align-items: center !important; gap: 8px !important; border: 0 !important; background: transparent !important; border-radius: 6px !important; padding: 5px 6px !important; text-align: left !important; width: 100% !important; }
     html body .kf-row[aria-pressed="true"] { background: var(--track) !important; font-weight: 600 !important; }
-    .kf-row .sw { width: 12px; height: 12px; border-radius: 50%; flex: none; box-shadow: 0 0 0 1px rgba(0,0,0,.2); }
+    .kf-row .sw { width: 12px; height: 12px; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 1px var(--edge); }
     .devices-list { max-height: 220px; overflow-y: auto; display: grid; }
     .device { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; padding: 6px 0; border-bottom: 1px solid var(--border-soft); }
     .tag { font-size: 12px; color: var(--faint); }
@@ -439,7 +448,8 @@
 
       const glow = h('span', { class: 'glow' });
       glow.style.background = enabled ? lightCss(v.temp) : 'var(--track)';
-      if (enabled) glow.style.boxShadow = '0 0 ' + Math.round(6 + (v.dim == null ? 0.7 : v.dim) * 16) + 'px ' + lightCss(v.temp, 0.8);
+      glow.style.boxShadow = 'inset 0 0 0 1px var(--edge)'
+        + (enabled ? ', 0 0 ' + Math.round(6 + (v.dim == null ? 0.7 : v.dim) * 16) + 'px ' + lightCss(v.temp, 0.8) : '');
 
       const missing = missingIds(group);
       const present = (group.deviceIds || []).filter((id) => !missing.includes(id));
@@ -501,7 +511,7 @@
       const bulb = h('span', { class: 'bulb' + (color ? '' : ' off') });
       if (color) {
         bulb.style.background = color;
-        bulb.style.boxShadow = '0 0 ' + Math.round(4 + strength * 20) + 'px ' + color;
+        bulb.style.boxShadow = 'inset 0 0 0 1px var(--edge), 0 0 ' + Math.round(4 + strength * 20) + 'px ' + color;
       }
       const cls = 'lamp' + (l && l.lock ? ' locked' : '') + (l && !l.lock && l.status && l.status.check === 'error' ? ' error' : '');
       const children = [bulb, h('span', { class: 'n', text: name }), h('span', { class: 's', text })];
@@ -658,6 +668,11 @@
         const at = preview != null ? preview : now.minutes;
         const val = (m) => valuesAt(group, m, weekend());
 
+        // Disc behind ring and bars, and outlines on the ring, so near-white
+        // daylight stays visible on a light page
+        const disc = s('circle', { cx: CX, cy: CX, r: R + RING / 2 }, svg);
+        disc.style.fill = 'var(--dial-bg)';
+
         // Colour ring and brightness bars
         for (let m = 0; m < 1440; m += 10) {
           s('path', { d: arc(m, m + 10.6, R), fill: 'none', stroke: lightCss(val(m + 5).temp), 'stroke-width': RING }, svg);
@@ -668,6 +683,11 @@
           const [x0, y0] = pos(m, R - RING / 2 - 5), [x1, y1] = pos(m, R - RING / 2 - 5 - v.dim * 34);
           s('line', { x1: x0, y1: y0, x2: x1, y2: y1, stroke: lightCss(v.temp), 'stroke-width': 2.4, 'stroke-linecap': 'round' }, svg);
         }
+
+        [R + RING / 2, R - RING / 2].forEach((r) => {
+          const edge = s('circle', { cx: CX, cy: CX, r, fill: 'none', 'stroke-width': 1 }, svg);
+          edge.style.stroke = 'var(--edge)';
+        });
 
         // Hour ticks and labels
         for (let hr = 0; hr < 24; hr++) {
