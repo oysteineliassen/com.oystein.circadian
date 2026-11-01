@@ -40,4 +40,7 @@ module.exports = {
   async stopTestColor({ homey }) {
     return homey.app.stopTestColor();
   },
+  async getHistory({ homey, query }) {
+    return homey.app.getHistory(query.groupId, query.range);
+  },
 };

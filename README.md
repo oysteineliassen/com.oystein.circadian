@@ -55,8 +55,10 @@ solnedgang, eller egne sjekkpunkter på en 24-timers klokke.
 - **Sikkerhetskopi**: nederst på forsiden kan du kopiere alle innstillingene
   som tekst og gjenopprette dem senere, f.eks. etter at appen er installert
   på nytt.
-- **Insights**: varme og lysstyrke for hvert rom logges hvert 2. minutt, så
-  du kan se grafer over dem i Homey under Insights.
+- **Historikk**: varme og lysstyrke lysene fikk (med dagslys regnet inn),
+  og målt dagslys, logges hvert 2. minutt. Grafen ligger på rommets side
+  («Historikk», siste døgn eller uke), og de samme tallene finnes i Homey
+  under Insights.
 
 ### Flow-kort
 

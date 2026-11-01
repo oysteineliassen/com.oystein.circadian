@@ -149,6 +149,14 @@ function makeApi(devices) {
       },
     },
     zones: { getZones: async () => ({}) },
+    insights: {
+      // Only the room "g1" has logs, and no light sensor
+      async getLogEntries({ id, resolution }) {
+        const m = /^homey:app:com\.oystein\.circadian:(g1)-(temp|dim)$/.exec(id);
+        if (!m) throw new Error('Not Found');
+        return { values: [{ t: '2026-11-01T10:00:00.000Z', v: m[2] === 'temp' ? 20 : 80 }, { t: '2026-11-01T10:05:00.000Z', v: null }], resolution };
+      },
+    },
   };
 }
 
@@ -501,6 +509,15 @@ test('Flow: start vekking nå, og triggere for startet og ferdig', async () => {
   await second.app.startWakeUpNow('g2', 1);
   await wait(60);
   assert.deepStrictEqual(second.homey.cards['wake-up-finished'].triggered, [{ room: 'Kjøkken' }]);
+});
+
+test('historikk hentes fra appens Insights-logger', async () => {
+  const d = makeDevice('a', { onoff: true, dim: 0.5, light_temperature: 0.5 });
+  const { app } = await startApp({ devices: [d], groups: [{ id: 'g1', name: 'Stue', mode: 'keyframes', keyframes: KEYFRAMES, deviceIds: ['a'] }] });
+  const h = await app.getHistory('g1', 'day');
+  const t = Date.parse('2026-11-01T10:00:00.000Z');
+  assert.deepStrictEqual(h, { range: 'day', temp: [[t, 20]], dim: [[t, 80]], lux: [] });
+  assert.deepStrictEqual(await app.getHistory('ukjent', 'week'), { range: 'week', temp: [], dim: [], lux: [] });
 });
 
 test('syntaks i innstillingssiden', () => {

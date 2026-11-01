@@ -86,8 +86,11 @@ skriv til ham på norsk. Han utvikler på Windows og har en Homey Pro (Early 202
   låsdeteksjon hopper over lys som testes (`_isTesting`).
 - Den falske Homey-en i testene må ha alt appen bruker (`setTimeout`,
   `clearTimeout`, `insights` …): mangler noe, feiler appen bare i testen.
-- **Insights**: logg-ID `${groupId}-temp` / `-dim`; ryddes i `_pruneInsights`
-  ved lagring.
+- **Insights**: logg-ID `${groupId}-temp` / `-dim` / `-lux`, med verdiene
+  lysene faktisk får (`_groupTarget`). Ryddes i `_pruneInsights` ved lagring.
+  Historikkgrafen leser dem tilbake med
+  `homeyApi.insights.getLogEntries({ id: 'homey:app:<app-id>:<logg-id>', resolution: 'last24Hours' | 'last7Days' })`
+  (`/history`). Lux har egen graf (log-skala), aldri samme akse som prosent.
 - Låser: `true` = manuell (til opplåsing), `'untilOff'` = pause til lyset
   slås av.
 - `light_temperature`: 0 = kaldest, 1 = varmest. Sett `light_mode` til

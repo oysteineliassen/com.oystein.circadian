@@ -81,6 +81,10 @@
     "stopTestColor": {
       "method": "POST",
       "path": "/test-color-stop"
+    },
+    "getHistory": {
+      "method": "GET",
+      "path": "/history"
     }
   },
   "flow": {

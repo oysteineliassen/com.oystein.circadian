@@ -160,6 +160,14 @@
     .tag.locked { color: var(--danger); }
     .simulate-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 
+    /* History graph */
+    .history { position: relative; }
+    svg.history-chart { width: 100%; height: auto; display: block; touch-action: pan-y; }
+    svg.history-chart text { font-family: inherit; font-size: 10px; fill: var(--faint); }
+    html body .history-seg button { white-space: nowrap !important; padding: 5px 10px !important; font-size: 13px !important; }
+    .history-readout { font-size: 12.5px; color: var(--muted); min-height: 1.4em; }
+    .history-readout b { color: var(--text); font-variant-numeric: tabular-nums; }
+
     /* Save bar */
     .savebar { position: fixed; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface); border-top: 1px solid var(--border); }
     .savebar .msg { flex: 1; font-size: 13px; color: var(--muted); }
@@ -682,6 +690,7 @@
         redrawEditor();
       }
       root.append(plan);
+      root.append(buildHistory(group));
       refreshDial = () => { dial.redraw(); if (group.mode === 'keyframes') redrawEditor(); };
 
       if (group.mode !== 'keyframes') {
@@ -1066,6 +1075,208 @@
         wrap.append(percentRow('Lysstyrke om natta', group.nightDim, '', changed((v) => { group.nightDim = v; })));
         wrap.append(percentRow('Lysstyrke midt på dagen', group.dayDim, '', changed((v) => { group.dayDim = v; })));
       }
+      return wrap;
+    }
+
+    // --- history: what the lights were given, from the app's Insights logs ---
+
+    const historyCache = {}; // `${groupId}:${range}` -> { at, data }
+    const historyRange = {}; // groupId -> 'day' | 'week'
+
+    function buildHistory(group) {
+      const range = historyRange[group.id] || 'day';
+      const box = h('div', { class: 'section' }, [
+        h('div', { class: 'row', style: 'min-height:0' }, [
+          h('h3', { text: 'Historikk' }),
+          h('div', { class: 'seg history-seg', role: 'group', 'aria-label': 'Tidsrom' }, [
+            ['day', 'Siste døgn'], ['week', 'Siste uke'],
+          ].map(([id, text]) => h('button', {
+            type: 'button',
+            'aria-pressed': String(range === id),
+            text,
+            onclick: () => { historyRange[group.id] = id; renderSoon(); },
+          }))),
+        ]),
+      ]);
+      const holder = h('div', { class: 'stack', style: 'gap:8px' }, [h('p', { class: 'hint', text: 'Henter...' })]);
+      box.append(holder);
+
+      const key = group.id + ':' + range;
+      const cached = historyCache[key];
+      const show = (data) => {
+        holder.innerHTML = '';
+        if (!data.dim.length && !data.temp.length) {
+          holder.append(h('p', { class: 'hint', text: 'Ingen historikk ennå. Appen logger hvert 2. minutt mens døgnrytmen er på, så grafen fylles etter hvert.' }));
+          return;
+        }
+        holder.append(historyChart(data));
+        if (data.lux.length) holder.append(luxChart(data));
+        holder.append(h('p', { class: 'hint', text: 'Høyden er lysstyrken lysene fikk, og fargen er lysfargen. Dra fingeren over grafen for å se verdiene. De samme tallene finnes i Homey under Insights.' }));
+      };
+      if (cached && Date.now() - cached.at < 120000) show(cached.data);
+      else {
+        HomeyRef.api('GET', '/history?groupId=' + encodeURIComponent(group.id) + '&range=' + range).then((data) => {
+          historyCache[key] = { at: Date.now(), data };
+          show(data);
+        }).catch((err) => {
+          holder.innerHTML = '';
+          holder.append(h('p', { class: 'hint', text: 'Kunne ikke hente historikk: ' + (err && err.message ? err.message : err) }));
+        });
+      }
+      return box;
+    }
+
+    // Shared geometry for the two graphs, so their time axes line up
+    const HW = 320, HPAD_L = 38, HPAD_R = 6;
+    function historyFrame(data) {
+      const end = Date.now();
+      const start = end - (data.range === 'week' ? 7 : 1) * 24 * 3600 * 1000;
+      const x = (t) => HPAD_L + ((t - start) / (end - start)) * (HW - HPAD_L - HPAD_R);
+      return { start, end, x };
+    }
+
+    // Split a series where the log has a hole (e.g. the room was switched off)
+    function segments(points) {
+      if (points.length < 2) return [points];
+      const steps = points.slice(1).map((p, i) => p[0] - points[i][0]).sort((a, b) => a - b);
+      const gap = steps[Math.floor(steps.length / 2)] * 4;
+      const out = [[points[0]]];
+      for (let i = 1; i < points.length; i++) {
+        if (points[i][0] - points[i - 1][0] > gap) out.push([]);
+        out[out.length - 1].push(points[i]);
+      }
+      return out;
+    }
+
+    function timeTicks(frame, range, svg, top, bottom) {
+      const ticks = [];
+      const d = new Date(frame.start);
+      d.setMinutes(0, 0, 0);
+      const stepH = range === 'week' ? 24 : 6;
+      if (range === 'week') d.setHours(24); else d.setHours(Math.ceil(d.getHours() / 6) * 6);
+      for (let t = d.getTime(); t <= frame.end; t += stepH * 3600 * 1000) ticks.push(t);
+      ticks.forEach((t) => {
+        const x = frame.x(t);
+        const l = s('line', { x1: x, x2: x, y1: top, y2: bottom, 'stroke-width': 1 }, svg);
+        l.style.stroke = 'var(--border-soft)';
+        const label = s('text', { x, y: bottom + 12, 'text-anchor': 'middle' }, svg);
+        label.textContent = range === 'week'
+          ? new Date(t).toLocaleDateString('nb-NO', { weekday: 'short' }).replace('.', '')
+          : String(new Date(t).getHours()).padStart(2, '0');
+      });
+    }
+
+    function historyChart(data) {
+      const H = 150, TOP = 8, BOTTOM = 128;
+      const frame = historyFrame(data);
+      const y = (v) => BOTTOM - (v / 100) * (BOTTOM - TOP);
+      const svg = s('svg', { class: 'history-chart', viewBox: '0 0 ' + HW + ' ' + H, role: 'img', 'aria-label': 'Lysstyrke og lysfarge ' + (data.range === 'week' ? 'siste uke' : 'siste døgn') });
+
+      [0, 50, 100].forEach((v) => {
+        const l = s('line', { x1: HPAD_L, x2: HW - HPAD_R, y1: y(v), y2: y(v), 'stroke-width': 1 }, svg);
+        l.style.stroke = v === 0 ? 'var(--border)' : 'var(--border-soft)';
+        const t = s('text', { x: HPAD_L - 4, y: y(v) + 3, 'text-anchor': 'end' }, svg);
+        t.textContent = v + ' %';
+      });
+      timeTicks(frame, data.range, svg, TOP, BOTTOM);
+
+      // Brightness, or full height for rooms that only follow colour
+      const dimSeries = data.dim.length ? data.dim : data.temp.map(([t]) => [t, 100]);
+
+      // Fill coloured by the light colour along time
+      const gradId = 'hg' + Math.random().toString(36).slice(2, 7);
+      const grad = s('linearGradient', { id: gradId, x1: '0', x2: String(HW), y1: '0', y2: '0', gradientUnits: 'userSpaceOnUse' }, s('defs', {}, svg));
+      const step = Math.max(1, Math.floor(data.temp.length / 96));
+      data.temp.filter((_, i) => i % step === 0).forEach(([t, v]) => {
+        s('stop', { offset: (frame.x(t) / HW).toFixed(4), 'stop-color': lightCss(v / 100) }, grad);
+      });
+
+      segments(dimSeries).forEach((seg) => {
+        if (seg.length < 2) return;
+        const line = seg.map(([t, v], i) => (i ? 'L' : 'M') + frame.x(t).toFixed(1) + ',' + y(v).toFixed(1)).join(' ');
+        s('path', { d: line + ' L' + frame.x(seg[seg.length - 1][0]).toFixed(1) + ',' + BOTTOM + ' L' + frame.x(seg[0][0]).toFixed(1) + ',' + BOTTOM + ' Z', fill: data.temp.length ? 'url(#' + gradId + ')' : 'var(--track)' }, svg);
+        const stroke = s('path', { d: line, fill: 'none', 'stroke-width': 2, 'stroke-linejoin': 'round' }, svg);
+        stroke.style.stroke = 'var(--text)';
+        stroke.setAttribute('stroke-opacity', '0.55');
+      });
+
+      return withHover(svg, frame, H, dimSeries, (t) => {
+        const temp = nearest(data.temp, t);
+        const lux = nearest(data.lux, t);
+        return [
+          (data.dim.length ? 'lysstyrke <b>' + Math.round(nearest(data.dim, t)) + ' %</b>' : null),
+          (temp != null ? 'varme <b>' + Math.round(temp) + ' %</b>' : null),
+          (lux != null ? '<b>' + Math.round(lux) + ' lux</b>' : null),
+        ].filter(Boolean).join(' · ');
+      }, (t) => y(nearest(dimSeries, t)));
+    }
+
+    function luxChart(data) {
+      const H = 74, TOP = 6, BOTTOM = 54;
+      const frame = historyFrame(data);
+      const maxLog = Math.max(2, Math.ceil(Math.log10(Math.max(...data.lux.map((p) => p[1]), 10))));
+      const y = (v) => BOTTOM - (Math.log10(Math.max(1, v)) / maxLog) * (BOTTOM - TOP);
+      const svg = s('svg', { class: 'history-chart', viewBox: '0 0 ' + HW + ' ' + H, role: 'img', 'aria-label': 'Dagslys målt av sensoren' });
+      for (let e = 0; e <= maxLog; e++) {
+        if (e !== 0 && e !== maxLog && maxLog > 3 && e % 2) continue;
+        const l = s('line', { x1: HPAD_L, x2: HW - HPAD_R, y1: y(10 ** e), y2: y(10 ** e), 'stroke-width': 1 }, svg);
+        l.style.stroke = e === 0 ? 'var(--border)' : 'var(--border-soft)';
+        const t = s('text', { x: HPAD_L - 4, y: y(10 ** e) + 3, 'text-anchor': 'end' }, svg);
+        t.textContent = 10 ** e >= 1000 ? (10 ** e / 1000) + 'k' : String(10 ** e);
+      }
+      timeTicks(frame, data.range, svg, TOP, BOTTOM);
+      segments(data.lux).forEach((seg) => {
+        if (seg.length < 2) return;
+        const p = s('path', { d: seg.map(([t, v], i) => (i ? 'L' : 'M') + frame.x(t).toFixed(1) + ',' + y(v).toFixed(1)).join(' '), fill: 'none', 'stroke-width': 2, 'stroke-linejoin': 'round' }, svg);
+        p.style.stroke = 'var(--sun)';
+      });
+      const wrap = withHover(svg, frame, H, data.lux, (t) => '<b>' + Math.round(nearest(data.lux, t)) + ' lux</b>', (t) => y(nearest(data.lux, t)));
+      return h('div', { class: 'stack', style: 'gap:2px' }, [h('span', { class: 'small muted', text: 'Dagslys (lux)' }), wrap]);
+    }
+
+    function nearest(points, t) {
+      let best = null;
+      points.forEach((p) => { if (best == null || Math.abs(p[0] - t) < Math.abs(best[0] - t)) best = p; });
+      return best ? best[1] : null;
+    }
+
+    // Crosshair, and a readout line above the graph: the latest values, or
+    // those under the finger or pointer while it is over the graph
+    function withHover(svg, frame, H, series, readoutHtml, dotY) {
+      const readout = h('div', { class: 'history-readout', 'aria-live': 'polite' });
+      const wrap = h('div', { class: 'history' }, [readout, svg]);
+      const cross = s('line', { y1: 0, y2: H - 18, 'stroke-width': 1, visibility: 'hidden' }, svg);
+      cross.style.stroke = 'var(--text)';
+      const dot = s('circle', { r: 4, 'stroke-width': 2, visibility: 'hidden' }, svg);
+      dot.style.fill = 'var(--text)';
+      dot.style.stroke = 'var(--surface)';
+      const label = (t, latest) => (latest ? 'Sist: ' : '<b>' + new Date(t).toLocaleString('nb-NO', { weekday: 'short', hour: '2-digit', minute: '2-digit' }) + '</b> · ') + readoutHtml(t);
+      const latest = series.length ? series[series.length - 1][0] : null;
+      const leave = () => {
+        readout.innerHTML = latest != null ? label(latest, true) : '';
+        cross.setAttribute('visibility', 'hidden');
+        dot.setAttribute('visibility', 'hidden');
+      };
+      const move = (evt) => {
+        const box = svg.getBoundingClientRect();
+        const vx = ((evt.clientX - box.left) / box.width) * HW;
+        if (vx < HPAD_L || vx > HW - HPAD_R || !series.length) { leave(); return; }
+        const t = frame.start + ((vx - HPAD_L) / (HW - HPAD_L - HPAD_R)) * (frame.end - frame.start);
+        let p = series[0];
+        series.forEach((q) => { if (Math.abs(q[0] - t) < Math.abs(p[0] - t)) p = q; });
+        const px = frame.x(p[0]);
+        cross.setAttribute('x1', px);
+        cross.setAttribute('x2', px);
+        cross.setAttribute('visibility', 'visible');
+        dot.setAttribute('cx', px);
+        dot.setAttribute('cy', dotY(p[0]));
+        dot.setAttribute('visibility', 'visible');
+        readout.innerHTML = label(p[0], false);
+      };
+      svg.addEventListener('pointermove', move);
+      svg.addEventListener('pointerdown', move);
+      svg.addEventListener('pointerleave', leave);
+      leave();
       return wrap;
     }
 
