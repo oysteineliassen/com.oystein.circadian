@@ -1,4 +1,13 @@
-# Døgnrytmelys (com.oystein.circadian)
+# Daylight Rhythm (com.oystein.circadian)
+
+*English:* Daylight Rhythm is a Homey app for circadian lighting. It adjusts
+the colour temperature and brightness of your lights through the day, room by
+room: following sunrise and sunset or your own points on a 24-hour clock, with
+weekend and holiday plans, a sunrise wake-up, daylight-aware brightness and a
+history graph. The app is available in English and Norwegian. Issues and
+suggestions: https://github.com/oysteineliassen/com.oystein.circadian/issues
+
+*Norsk:* resten av dokumentet er på norsk.
 
 Homey-app som styrer fargetemperatur og lysstyrke på lys gjennom døgnet.
 Lysene organiseres i grupper, og hver gruppe følger enten soloppgang og
@@ -14,6 +23,10 @@ solnedgang, eller egne sjekkpunkter på en 24-timers klokke.
 - **Riktige verdier ved påslag**: slår du på et lys, får det fargen og
   lysstyrken døgnrytmen har akkurat nå, i stedet for å vente på neste runde
   (hvert 2. minutt).
+- **Språk**: appen og innstillingssiden er på engelsk og norsk, etter
+  språket Homey er satt til. Navnet er Daylight Rhythm på alle språk.
+- **Røde dager** (nederst på forsiden): Norge eller ingen. Nye installasjoner
+  får Norge når Homey er på norsk, ellers ingen.
 - **Egen plan for helg og røde dager** (per rom): gjelder fra kl. 12 dagen
   før en lørdag, søndag eller rød dag til kl. 12 på dagen. Altså fredag og
   lørdag kveld, lørdag og søndag morgen, og det samme rundt helligdager

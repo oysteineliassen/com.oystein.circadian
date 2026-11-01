@@ -37,7 +37,13 @@ Object.keys(fakes).forEach((name) => {
 const CircadianApp = require(path.join(ROOT, 'app.js'));
 const lib = require(path.join(ROOT, 'lib/circadian.js'));
 
-function makeHomey() {
+const LOCALES = {
+  en: JSON.parse(fs.readFileSync(path.join(ROOT, 'locales/en.json'), 'utf8')),
+  no: JSON.parse(fs.readFileSync(path.join(ROOT, 'locales/no.json'), 'utf8')),
+};
+const lookup = (lang, key) => key.split('.').reduce((o, k) => (o ? o[k] : undefined), LOCALES[lang]);
+
+function makeHomey(lang = 'no') {
   const cards = {};
   const card = (id) => cards[id] || (cards[id] = {
     id,
@@ -55,6 +61,8 @@ function makeHomey() {
     cards,
     tokens,
     logs,
+    __: (key) => lookup(lang, key) || key,
+    i18n: { getLanguage: () => lang },
     insights: {
       async getLog(id) {
         if (!logs[id]) throw new Error('Not Found');
@@ -165,10 +173,10 @@ const KEYFRAMES = [
   { time: '12:00', temp: 0.1, dim: 1 },
 ];
 
-async function startApp({ devices, groups, locks }) {
+async function startApp({ devices, groups, locks, lang, config }) {
   currentApi = makeApi(devices);
-  const homey = makeHomey();
-  homey.settings.set('config', { enabled: true, groups });
+  const homey = makeHomey(lang);
+  if (config !== null) homey.settings.set('config', Object.assign({ enabled: true, groups }, config || {}));
   if (locks) homey.settings.set('locks', locks);
   const app = new CircadianApp();
   app.homey = homey;
@@ -518,6 +526,41 @@ test('historikk hentes fra appens Insights-logger', async () => {
   const t = Date.parse('2026-11-01T10:00:00.000Z');
   assert.deepStrictEqual(h, { range: 'day', temp: [[t, 20]], dim: [[t, 80]], lux: [] });
   assert.deepStrictEqual(await app.getHistory('ukjent', 'week'), { range: 'week', temp: [], dim: [], lux: [] });
+});
+
+test('språkfilene har de samme tekstene, og alle som brukes finnes', () => {
+  const flat = (o, prefix = '') => Object.entries(o).flatMap(([k, v]) => (typeof v === 'object' ? flat(v, prefix + k + '.') : [prefix + k]));
+  assert.deepStrictEqual(flat(LOCALES.no).sort(), flat(LOCALES.en).sort(), 'en.json og no.json har ulike nøkler');
+  const html = fs.readFileSync(path.join(ROOT, 'settings/index.html'), 'utf8');
+  const appSrc = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+  const used = [...html.matchAll(/tr\('(settings\.[A-Za-z0-9]+)'/g), ...appSrc.matchAll(/_t(?:itles)?\('(app\.[A-Za-z0-9]+)'/g)].map((m) => m[1]);
+  const missing = [...new Set(used)].filter((k) => !lookup('en', k));
+  assert.deepStrictEqual(missing, [], 'nøkler som brukes, men mangler i språkfilene');
+  assert.ok(!/[æøå]/i.test(JSON.stringify(LOCALES.en)), 'norske bokstaver i en.json');
+});
+
+test('engelsk Homey gir engelske tekster, og røde dager kan slås av', async () => {
+  const d = makeDevice('a', { onoff: false, dim: 0.5, light_temperature: 0.5 });
+  const { app, homey } = await startApp({ devices: [d], groups: [{ id: 'g1', name: 'Living room', mode: 'keyframes', keyframes: KEYFRAMES, deviceIds: ['a'] }], lang: 'en', config: { holidays: 'none' } });
+  assert.strictEqual(app.config.holidays, 'none');
+  await app._updateTokens();
+  assert.strictEqual(homey.tokens['g1-temp'].title, 'Living room: warmth (%)');
+  const st = await app.getStatus();
+  assert.strictEqual(st.groups[0].lights[0].status.text, 'Off, left alone');
+  // 17. mai er ikke fridag uten norske helligdager
+  assert.strictEqual(lib.isFreeDay({ year: 2026, month: 5, day: 14 }, 'none'), false);
+  assert.strictEqual(lib.isFreeDay({ year: 2026, month: 5, day: 14 }, 'NO'), true);
+});
+
+test('eksisterende oppsett beholder norske røde dager, nye på norsk får dem', async () => {
+  const d = makeDevice('a', { onoff: false, dim: 0.5, light_temperature: 0.5 });
+  // Et oppsett fra før innstillingen fantes (har rom, men ingen "holidays")
+  const old = await startApp({ devices: [d], groups: [{ id: 'g1', name: 'Stue', mode: 'keyframes', keyframes: KEYFRAMES, deviceIds: ['a'] }], lang: 'en', config: { holidays: undefined } });
+  assert.strictEqual(old.app.config.holidays, 'NO');
+  const fresh = await startApp({ devices: [d], groups: [], lang: 'no', config: null });
+  assert.strictEqual(fresh.app.config.holidays, 'NO');
+  const freshEn = await startApp({ devices: [d], groups: [], lang: 'en', config: null });
+  assert.strictEqual(freshEn.app.config.holidays, 'none');
 });
 
 test('syntaks i innstillingssiden', () => {

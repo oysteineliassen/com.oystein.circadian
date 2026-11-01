@@ -20,8 +20,9 @@ skriv til ham på norsk. Han utvikler på Windows og har en Homey Pro (Early 202
   `main` til Homey App Store som utkast (krever hemmeligheten `HOMEY_PAT`).
   Den setter versjon `1.1.<run_number>` og en endringslogg fra commit-
   meldingen uten å committe dem, og kjører Homey CLI direkte (Athoms egen
-  action krever `package-lock.json`, som er utelatt med vilje). Skriv derfor
-  commit-meldinger som gir mening for Øystein som endringslogg.
+  action krever `package-lock.json`, som er utelatt med vilje). Commit-
+  meldingen blir endringsloggen i App Store: første linje på engelsk, og en
+  linje `NO: …` med norsk tekst (ellers brukes den engelske for norsk også).
 - Hold `README.md` oppdatert når funksjoner eller Flow-kort endres.
 
 ## Filer
@@ -42,6 +43,21 @@ skriv til ham på norsk. Han utvikler på Windows og har en Homey Pro (Early 202
   sammenligner `config` med sist lagrede versjon. Bryterne i oversikten
   lagrer med en gang.
 - `app.json`: manifest, API-ruter og Flow-kort.
+
+## Språk (appen er for et internasjonalt publikum)
+
+- Appen heter **Daylight Rhythm** på alle språk («Circadian Lighting» er tatt
+  av en annen app). App-ID `com.oystein.circadian` må ikke endres.
+- Alle tekster brukeren ser, står i `locales/en.json` og `locales/no.json`
+  (samme nøkler, testen sjekker det). Innstillingssiden bruker
+  `tr('settings.x', { var })`, appen `this._t('app.x', { var })`; `{var}` i
+  teksten byttes ut. Insights-titler lagres på alle språk med `_titles()`.
+  Aldri skriv norsk eller engelsk tekst rett i koden.
+- Søk: stikkordene i `app.json` (`tags`) og «Circadian lighting» i
+  beskrivelsen gjør at appen kommer opp når noen søker på «circadian».
+- `config.holidays`: `'NO'` eller `'none'` (`HOLIDAY_CALENDARS` i
+  `settings/circadian.js`). Gamle oppsett uten valget får `'NO'`, nye får
+  `'NO'` når Homey er på norsk. Flere land legges til i `HOLIDAY_CALENDARS`.
 
 ## Lærdommer (ikke gjør disse feilene på nytt)
 
@@ -72,9 +88,9 @@ skriv til ham på norsk. Han utvikler på Windows og har en Homey Pro (Early 202
   ny ID). `getDevice` kaster «Not Found»; `_markIfMissing` husker dem i
   `_missing`, tick hopper over dem, og `/status` gir `missing: true`, så
   innstillingssiden kan tilby å fjerne dem. Sjekkes på nytt ved lagring.
-- **Helg/røde dager**: `freeDays()` + `isWeekendAt()` (morgen: er i dag fri?
-  fra kl. 12: er i morgen fri?). Norske helligdager inkl. julaften og
-  nyttårsaften; påske regnes ut. `isWeekendPlan(weekday, …)` finnes bare
+- **Helg/røde dager**: `freeDays(date, tz, holidays)` + `isWeekendAt()` (morgen:
+  er i dag fri? fra kl. 12: er i morgen fri?). Norske helligdager inkl.
+  julaften og nyttårsaften; påske regnes ut. `isWeekendPlan(weekday, …)` finnes bare
   for testene og gamle kall.
 - **Fargeområde** (`config.calibration[deviceId] = { warmK, coolK }`):
   planen bruker skalaen 0 = 6500 K .. 1 = 2200 K. `toDeviceTemp()` regnes om

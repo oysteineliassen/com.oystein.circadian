@@ -61,13 +61,19 @@ jobs:
         id: version
         run: |
           VERSION="1.1.${GITHUB_RUN_NUMBER}"
-          MESSAGE="$(git log -1 --pretty=%s)"
+          # English changelog: the commit's subject line. Norwegian: a line in
+          # the message starting with "NO:", or else the subject too.
+          MESSAGE="$(git log -1 --pretty=%B)"
           VERSION="$VERSION" MESSAGE="$MESSAGE" node -e '
             const fs = require("fs");
             const app = JSON.parse(fs.readFileSync("app.json", "utf8"));
             app.version = process.env.VERSION;
             fs.writeFileSync("app.json", JSON.stringify(app, null, 2) + "\n");
-            const changelog = { [process.env.VERSION]: { en: process.env.MESSAGE, no: process.env.MESSAGE } };
+            const lines = process.env.MESSAGE.split("\n").map((l) => l.trim());
+            const en = lines[0];
+            const noLine = lines.find((l) => /^NO:/i.test(l));
+            const no = noLine ? noLine.replace(/^NO:\s*/i, "") : en;
+            const changelog = { [process.env.VERSION]: { en, no } };
             fs.writeFileSync(".homeychangelog.json", JSON.stringify(changelog, null, 2) + "\n");
           '
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"

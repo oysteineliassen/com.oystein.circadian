@@ -3,6 +3,7 @@
 const Homey = require('homey');
 const { HomeyAPI } = require('homey-api');
 const SunCalc = require('suncalc');
+const LOCALES = { en: require('./locales/en.json'), no: require('./locales/no.json') };
 const {
   REF_COOL_K, REF_WARM_K, freeDays, fromDeviceTemp, groupValues, isWeekendAt, luxFactor, toDeviceTemp,
   toMinutesFromTimeString,
@@ -24,7 +25,7 @@ function sleep(ms) {
 }
 
 const DEFAULT_GROUP = {
-  name: 'Ny gruppe',
+  name: 'New room',
   deviceIds: [],
   enabled: true,
   mode: 'sun', // 'sun' | 'keyframes'
@@ -66,7 +67,12 @@ const DEFAULT_CONFIG = {
   enabled: true,
   groups: [],
   calibration: {}, // deviceId -> { warmK, coolK }, the light's colour temperature range
+  holidays: 'none', // public holidays that count as days off: 'NO' (Norway) or 'none'
 };
+
+function fill(text, vars) {
+  return Object.entries(vars || {}).reduce((t, [k, v]) => t.split(`{${k}}`).join(String(v)), text);
+}
 
 function makeId() {
   return 'g-' + Math.random().toString(36).slice(2, 10);
@@ -79,6 +85,14 @@ class CircadianApp extends Homey.App {
 
     const savedConfig = await this.homey.settings.get('config');
     this.config = this._migrateConfig(savedConfig);
+    if (!savedConfig || savedConfig.holidays === undefined) {
+      // Existing setups had Norwegian holidays from before this was a setting;
+      // new ones get them when the Homey is set to Norwegian
+      let lang = null;
+      try { lang = this.homey.i18n.getLanguage(); } catch (err) { /* unknown */ }
+      const existing = !!(savedConfig && Array.isArray(savedConfig.groups) && savedConfig.groups.length);
+      this.config.holidays = existing || lang === 'no' ? 'NO' : 'none';
+    }
     await this.homey.settings.set('config', this.config);
 
     this.locks = (await this.homey.settings.get('locks')) || {};
@@ -133,6 +147,26 @@ class CircadianApp extends Homey.App {
     this.log('Circadian Lighting ready.');
   }
 
+  /** A text from locales/<the Homey's language>.json; {name} is replaced by vars.name. */
+  _t(key, vars) {
+    let text = null;
+    try {
+      text = this.homey.__(key);
+    } catch (err) { /* fall back to the key */ }
+    if (typeof text !== 'string' || !text) text = key;
+    return fill(text, vars);
+  }
+
+  /** A text in every language the app has, for titles Homey shows in the user's language. */
+  _titles(key, vars) {
+    const out = {};
+    Object.entries(LOCALES).forEach(([lang, strings]) => {
+      const text = key.split('.').reduce((o, k) => (o ? o[k] : undefined), strings);
+      out[lang] = fill(typeof text === 'string' ? text : key, vars);
+    });
+    return out;
+  }
+
   async onUninit() {
     if (this._interval) this.homey.clearInterval(this._interval);
     Object.values(this._capInstances || {}).forEach((list) => list.forEach((inst) => {
@@ -180,7 +214,7 @@ class CircadianApp extends Homey.App {
         const q = (query || '').toLowerCase();
         return (this.config.groups || [])
           .filter((g) => (g.name || '').toLowerCase().includes(q))
-          .map((g) => ({ id: g.id, name: g.name || 'Uten navn' }));
+          .map((g) => ({ id: g.id, name: g.name || this._t('app.unnamed') }));
       });
     } catch (err) {
       this.log('Could not register "turn-on-group" flow card:', err.message);
@@ -195,7 +229,7 @@ class CircadianApp extends Homey.App {
       card.registerArgumentAutocompleteListener('target', async (query) => {
         const q = (query || '').toLowerCase();
         const groups = (this.config.groups || []).map((g) => ({
-          id: 'group:' + g.id, name: 'Gruppe: ' + (g.name || 'Uten navn'),
+          id: 'group:' + g.id, name: this._t('app.groupPrefix') + (g.name || this._t('app.unnamed')),
         }));
         const lights = (await this.getControllableDevices()).map((d) => ({ id: d.id, name: d.name }));
         return groups.concat(lights).filter((x) => x.name.toLowerCase().includes(q));
@@ -208,7 +242,7 @@ class CircadianApp extends Homey.App {
       const q = (query || '').toLowerCase();
       return (this.config.groups || [])
         .filter((g) => g && (g.name || '').toLowerCase().includes(q))
-        .map((g) => ({ id: g.id, name: g.name || 'Uten navn' }));
+        .map((g) => ({ id: g.id, name: g.name || this._t('app.unnamed') }));
     };
 
     try {
@@ -270,7 +304,7 @@ class CircadianApp extends Homey.App {
 
     // Old flat single-group shape from an earlier version -> wrap into one group
     if (Array.isArray(saved.deviceIds)) {
-      const group = Object.assign({}, DEFAULT_GROUP, saved, { name: 'Standard', id: makeId() });
+      const group = Object.assign({}, DEFAULT_GROUP, saved, { name: this._t('app.defaultGroupName'), id: makeId() });
       delete group.groups;
       this.log('Migrated old single-group settings into a "Standard" group.');
       return { enabled: saved.enabled !== false, groups: [group] };
@@ -349,7 +383,7 @@ class CircadianApp extends Homey.App {
   /** Flow action: switch circadian control for one group on or off. */
   async setGroupEnabled(groupId, enabled) {
     const group = (this.config.groups || []).find((g) => g && g.id === groupId);
-    if (!group) throw new Error('Fant ikke gruppen');
+    if (!group) throw new Error(this._t('app.groupNotFound'));
     group.enabled = !!enabled;
     try {
       this.homey.settings.set('config', this.config);
@@ -378,9 +412,9 @@ class CircadianApp extends Homey.App {
     (this.config.groups || []).forEach((g) => {
       if (!g || !g.id) return;
       const v = groupValues(g, now.minutes, sun, now.weekend);
-      const name = g.name || 'Uten navn';
-      if (v.temp != null) wanted[`${g.id}-temp`] = { title: `${name}: varme (%)`, value: Math.round(v.temp * 100) };
-      if (v.dim != null) wanted[`${g.id}-dim`] = { title: `${name}: lysstyrke (%)`, value: Math.round(v.dim * 100) };
+      const name = g.name || this._t('app.unnamed');
+      if (v.temp != null) wanted[`${g.id}-temp`] = { title: this._t('app.tokenWarmth', { name }), value: Math.round(v.temp * 100) };
+      if (v.dim != null) wanted[`${g.id}-dim`] = { title: this._t('app.tokenBrightness', { name }), value: Math.round(v.dim * 100) };
     });
 
     // Remove tokens for deleted groups, and renamed ones (a token's title is fixed)
@@ -429,11 +463,11 @@ class CircadianApp extends Homey.App {
    */
   async simulateGroup(groupId) {
     const group = (this.config.groups || []).find((g) => g.id === groupId);
-    if (!group) throw new Error('Fant ikke gruppen');
+    if (!group) throw new Error(this._t('app.groupNotFound'));
     if (!Array.isArray(group.deviceIds) || group.deviceIds.length === 0) {
       throw new Error('Gruppen har ingen lys valgt');
     }
-    if (this._simulationRunning) throw new Error('En simulering kjører allerede');
+    if (this._simulationRunning) throw new Error(this._t('app.simulationRunning'));
 
     const steps = 60; // one write per simulated 24 minutes
     const durationSeconds = 60;
@@ -441,7 +475,7 @@ class CircadianApp extends Homey.App {
     const minutesPerStep = 1440 / steps;
 
     const sun = this._sunMinutes();
-    const free = freeDays(new Date(), this.timeZone);
+    const free = freeDays(new Date(), this.timeZone, this.config.holidays);
 
     // Resolve devices once. After homeyApi.devices.connect() (called in onInit)
     // these objects are kept live-updated over the websocket, so reading
@@ -473,7 +507,7 @@ class CircadianApp extends Homey.App {
       try {
         for (let i = 0; i <= steps; i++) {
           if (!this._simulationRunning) {
-            this._simStatus.stoppedReason = this._simStatus.stoppedReason || 'Stoppet av bruker';
+            this._simStatus.stoppedReason = this._simStatus.stoppedReason || this._t('app.stoppedByUser');
             break;
           }
 
@@ -500,7 +534,7 @@ class CircadianApp extends Homey.App {
           )));
 
           if (!this._simulationRunning) {
-            this._simStatus.stoppedReason = this._simStatus.stoppedReason || 'Stoppet av bruker';
+            this._simStatus.stoppedReason = this._simStatus.stoppedReason || this._t('app.stoppedByUser');
             break;
           }
 
@@ -508,7 +542,7 @@ class CircadianApp extends Homey.App {
         }
       } catch (err) {
         this.log('[simulate] Error during simulation:', err.message);
-        this._simStatus.stoppedReason = 'Feil: ' + err.message;
+        this._simStatus.stoppedReason = this._t('app.errorPrefix') + err.message;
       } finally {
         this._simulationRunning = false;
         this._simStatus.running = false;
@@ -526,7 +560,7 @@ class CircadianApp extends Homey.App {
 
   async stopSimulation() {
     this._simulationRunning = false;
-    if (this._simStatus) this._simStatus.stoppedReason = 'Stoppet av bruker';
+    if (this._simStatus) this._simStatus.stoppedReason = this._t('app.stoppedByUser');
     return { stopped: true };
   }
 
@@ -633,7 +667,7 @@ class CircadianApp extends Homey.App {
     if (!/not found/i.test(err && err.message)) return false;
     if (!this._missing[deviceId]) this.log(`Light ${deviceId} no longer exists in Homey — skipping it.`);
     this._missing[deviceId] = true;
-    this._noteStatus(deviceId, 'missing', 'Finnes ikke lenger i Homey');
+    this._noteStatus(deviceId, 'missing', this._t('app.statusMissing'));
     return true;
   }
 
@@ -673,7 +707,7 @@ class CircadianApp extends Homey.App {
     let ids = [];
     if (String(target).startsWith('group:')) {
       const group = (this.config.groups || []).find((g) => g.id === String(target).slice(6));
-      if (!group) throw new Error('Fant ikke gruppen');
+      if (!group) throw new Error(this._t('app.groupNotFound'));
       ids = group.deviceIds || [];
     } else {
       ids = [target];
@@ -736,7 +770,7 @@ class CircadianApp extends Homey.App {
       this.locks[deviceId] = true;
       this._persistLocks();
       this.log(`"${name}" was adjusted manually (${cap} ${prev} -> ${value}) — locked out of automatic control.`);
-      this._noteStatus(deviceId, 'locked', 'Låst etter manuell justering');
+      this._noteStatus(deviceId, 'locked', this._t('app.statusLocked'));
       this._triggerLocked(deviceId, name);
     }
   }
@@ -811,7 +845,7 @@ class CircadianApp extends Homey.App {
   _now() {
     const date = new Date();
     const minutes = zonedMinutesOfDay(date, this.timeZone);
-    const free = freeDays(date, this.timeZone);
+    const free = freeDays(date, this.timeZone, this.config.holidays);
     return { minutes, free, date: zonedDate(date, this.timeZone), weekend: isWeekendAt(free, minutes) };
   }
 
@@ -903,7 +937,7 @@ class CircadianApp extends Homey.App {
    */
   async showTestColor(groupId, kelvin) {
     const group = (this.config.groups || []).find((g) => g && g.id === groupId);
-    if (!group) throw new Error('Fant ikke gruppen');
+    if (!group) throw new Error(this._t('app.groupNotFound'));
     if (this._testing) await this._endTestColor();
     const k = Math.max(1500, Math.min(10000, Number(kelvin) || 3000));
     const plan = Math.max(0, Math.min(1, (REF_COOL_K - k) / (REF_COOL_K - REF_WARM_K)));
@@ -1090,7 +1124,7 @@ class CircadianApp extends Homey.App {
   /** Flow action: start a group's sunrise wake-up now, ending in `minutes`. */
   async startWakeUpNow(groupId, minutes) {
     const group = (this.config.groups || []).find((g) => g && g.id === groupId);
-    if (!group) throw new Error('Fant ikke gruppen');
+    if (!group) throw new Error(this._t('app.groupNotFound'));
     const length = Math.max(1, Math.min(60, Math.round(Number(minutes) || Number(group.wakeUpMinutes) || DEFAULT_GROUP.wakeUpMinutes)));
     const now = this._now();
     await this._startWakeUp(group, now, now.minutes + length, length, this._sunMinutes());
@@ -1119,7 +1153,7 @@ class CircadianApp extends Homey.App {
       }
       if (switchOn && caps.onoff) await device.setCapabilityValue('onoff', true);
       this._lastAppliedAt[deviceId] = Date.now();
-      this._noteStatus(deviceId, 'ok', 'Soloppgangsvekking', { temp, dim });
+      this._noteStatus(deviceId, 'ok', this._t('app.statusWaking'), { temp, dim });
     } catch (err) {
       if (this._markIfMissing(deviceId, err)) return;
       this.log(`Wake-up step failed for ${deviceId}:`, err.message);
@@ -1138,10 +1172,10 @@ class CircadianApp extends Homey.App {
       for (const g of this.config.groups || []) {
         if (!g || !g.id || g.enabled === false) continue;
         const v = this._groupTarget(g, now, sun);
-        const name = g.name || 'Uten navn';
-        if (v.temp != null) await (await this._insightLog(`${g.id}-temp`, `${name}: varme`)).createEntry(Math.round(v.temp * 100));
-        if (v.dim != null) await (await this._insightLog(`${g.id}-dim`, `${name}: lysstyrke`)).createEntry(Math.round(v.dim * 100));
-        if (v.lux != null) await (await this._insightLog(`${g.id}-lux`, `${name}: dagslys`, 'lx')).createEntry(Math.round(v.lux));
+        const name = g.name || this._t('app.unnamed');
+        if (v.temp != null) await (await this._insightLog(`${g.id}-temp`, this._titles('app.insightWarmth', { name }))).createEntry(Math.round(v.temp * 100));
+        if (v.dim != null) await (await this._insightLog(`${g.id}-dim`, this._titles('app.insightBrightness', { name }))).createEntry(Math.round(v.dim * 100));
+        if (v.lux != null) await (await this._insightLog(`${g.id}-lux`, this._titles('app.insightDaylight', { name }), 'lx')).createEntry(Math.round(v.lux));
       }
     } catch (err) {
       this.log('Could not log to Insights:', err.message);
@@ -1155,7 +1189,7 @@ class CircadianApp extends Homey.App {
       log = await this.homey.insights.getLog(id);
     } catch (err) {
       log = await this.homey.insights.createLog(id, {
-        title: { en: title, no: title }, type: 'number', units, decimals: 0,
+        title, type: 'number', units, decimals: 0,
       });
     }
     this._insightLogs[id] = log;
@@ -1215,7 +1249,7 @@ class CircadianApp extends Homey.App {
    */
   async turnOnGroup(groupId) {
     const group = (this.config.groups || []).find((g) => g.id === groupId);
-    if (!group) throw new Error('Fant ikke gruppen');
+    if (!group) throw new Error(this._t('app.groupNotFound'));
     const deviceIds = group.deviceIds || [];
 
     deviceIds.forEach((id) => { delete this.locks[id]; });
@@ -1275,7 +1309,7 @@ class CircadianApp extends Homey.App {
     } catch (err) {
       if (this._markIfMissing(deviceId, err)) return;
       this.log(`Failed to update device ${deviceId}:`, err.message);
-      this._noteStatus(deviceId, 'error', 'Feil: ' + err.message);
+      this._noteStatus(deviceId, 'error', this._t('app.errorPrefix') + err.message);
     }
   }
 
@@ -1323,7 +1357,7 @@ class CircadianApp extends Homey.App {
 
       if (skipOffLights && this._isOffState(liveState())) {
         this.log(`Skipping "${name}" — it is off.`);
-        this._noteStatus(deviceId, 'off', 'Av, ikke rørt');
+        this._noteStatus(deviceId, 'off', this._t('app.statusOff'));
         return; // leave lights that are switched off alone
       }
 
@@ -1334,7 +1368,7 @@ class CircadianApp extends Homey.App {
         if (!opts.quick) await sleep(SETTLE_MS);
         if (this._isOffState(liveState())) {
           this.log(`Skipping "${name}" — went off during settle check.`);
-          this._noteStatus(deviceId, 'off', 'Av, ikke rørt');
+          this._noteStatus(deviceId, 'off', this._t('app.statusOff'));
           return;
         }
         if (this.locks[deviceId]) return; // adjusted manually during the wait
@@ -1348,7 +1382,7 @@ class CircadianApp extends Homey.App {
           fresh = await this.homeyApi.devices.getDevice({ id: deviceId, $cache: false, $updateCache: false });
         } catch (err) {
           this.log(`Skipping "${name}" — could not read fresh state:`, err.message);
-          this._noteStatus(deviceId, 'error', 'Fikk ikke lest tilstanden fra Homey');
+          this._noteStatus(deviceId, 'error', this._t('app.statusReadFailed'));
           return;
         }
         const fc = (fresh && fresh.capabilitiesObj) || {};
@@ -1358,7 +1392,7 @@ class CircadianApp extends Homey.App {
         };
         if (this._isOffState(freshState)) {
           this.log(`Skipping "${name}" — Homey reports it off, but our live state said on. Re-listening.`);
-          this._noteStatus(deviceId, 'stale', 'Av (appen trodde den var på, rettet opp)');
+          this._noteStatus(deviceId, 'stale', this._t('app.statusStale'));
           if (this._capState[deviceId]) Object.assign(this._capState[deviceId], freshState);
           this._resetCapabilityListeners(deviceId)
             .catch((err) => this.log(`Could not re-listen to "${name}":`, err.message));
@@ -1373,7 +1407,7 @@ class CircadianApp extends Homey.App {
         && (cur.dim == null || Math.abs(cur.dim - dimValue) > Math.max(0.005, opts.dimTolerance || 0));
 
       if (!needTemp && !needDim) {
-        this._noteStatus(deviceId, 'ok', 'Følger døgnrytmen');
+        this._noteStatus(deviceId, 'ok', this._t('app.statusFollowing'));
         return; // already at the right values
       }
 
@@ -1414,7 +1448,7 @@ class CircadianApp extends Homey.App {
       }
 
       if (!this._simulationRunning) {
-        this._noteStatus(deviceId, 'ok', opts.quick ? 'Satt ved påslag' : 'Følger døgnrytmen', {
+        this._noteStatus(deviceId, 'ok', opts.quick ? this._t('app.statusSetOnSwitchOn') : this._t('app.statusFollowing'), {
           temp: needTemp ? value : null,
           dim: needDim ? dimValue : null,
         });
@@ -1427,14 +1461,14 @@ class CircadianApp extends Homey.App {
         await sleep(1500 + fadeMs); // give the off-event a moment to arrive
         if (offDuringWrite() && device.capabilitiesObj.onoff) {
           this.log(`"${name}" was switched off while we were writing — switching it off again.`);
-          this._noteStatus(deviceId, 'off', 'Slått av mens appen skrev, slått av igjen');
+          this._noteStatus(deviceId, 'off', this._t('app.statusOffAgain'));
           await device.setCapabilityValue('onoff', false)
             .catch((err) => this.log(`Could not switch off ${deviceId}:`, err.message));
         }
       }
     } catch (err) {
       this.log(`Failed to update device ${deviceId}:`, err.message);
-      this._noteStatus(deviceId, 'error', 'Feil: ' + err.message);
+      this._noteStatus(deviceId, 'error', this._t('app.errorPrefix') + err.message);
     }
   }
 

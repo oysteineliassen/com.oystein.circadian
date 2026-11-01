@@ -101,16 +101,20 @@ function isNorwegianHoliday(d) {
   });
 }
 
-/** A day off: Saturday, Sunday or a holiday. */
-function isFreeDay(d) {
+/** Holiday calendars to choose from: 'NO' (Norway) or 'none'. */
+const HOLIDAY_CALENDARS = { NO: isNorwegianHoliday };
+
+/** A day off: Saturday, Sunday or a holiday in the chosen calendar. */
+function isFreeDay(d, holidays = 'NO') {
   const weekday = new Date(Date.UTC(d.year, d.month - 1, d.day)).getUTCDay();
-  return weekday === 0 || weekday === 6 || isNorwegianHoliday(d);
+  const isHoliday = HOLIDAY_CALENDARS[holidays];
+  return weekday === 0 || weekday === 6 || (!!isHoliday && isHoliday(d));
 }
 
 /** Whether today and tomorrow (on the Homey's clock) are days off. */
-function freeDays(date, timeZone) {
+function freeDays(date, timeZone, holidays = 'NO') {
   const today = zonedDate(date, timeZone);
-  return { today: isFreeDay(today), tomorrow: isFreeDay(addDays(today, 1)) };
+  return { today: isFreeDay(today, holidays), tomorrow: isFreeDay(addDays(today, 1), holidays) };
 }
 
 /**
@@ -318,6 +322,7 @@ function calculateKeyframeValues(nowMinutes, keyframes) {
 }
 
 const api = {
+  HOLIDAY_CALENDARS,
   REF_COOL_K,
   REF_WARM_K,
   calculateCircadianValue,

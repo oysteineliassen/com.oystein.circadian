@@ -184,12 +184,12 @@
 </head>
 <body>
 
-  <div id="app">Laster...</div>
+  <div id="app">…</div>
 
   <div class="savebar">
     <span class="msg" id="saveMsg"></span>
-    <button type="button" id="applyNow">Bruk nå</button>
-    <button type="button" class="primary" id="save">Lagre</button>
+    <button type="button" id="applyNow"></button>
+    <button type="button" class="primary" id="save"></button>
   </div>
 
   <script type="text/javascript" src="circadian.js"></script>
@@ -197,7 +197,8 @@
   <script type="text/javascript">
     const C = window.Circadian;
     const SVG = 'http://www.w3.org/2000/svg';
-    const WEEKEND_LABEL = 'Egen plan for helg og røde dager';
+    // A function: texts can only be looked up once Homey has loaded
+    const WEEKEND_LABEL = () => tr('settings.weekendLabel');
 
     let HomeyRef = null;
     let devices = [];
@@ -239,7 +240,7 @@
     function defaultGroup() {
       return {
         id: makeId(),
-        name: 'Nytt rom',
+        name: tr('settings.newRoomName'),
         deviceIds: [],
         enabled: true,
         mode: 'sun',
@@ -271,6 +272,15 @@
       };
     }
 
+    // Texts come from the app's locales/<language>.json, in the language set
+    // on the Homey. {name} in a text is replaced by vars.name.
+    function tr(key, vars) {
+      let text = HomeyRef && typeof HomeyRef.__ === 'function' ? HomeyRef.__(key) : null;
+      if (typeof text !== 'string' || !text) text = key;
+      Object.entries(vars || {}).forEach(([k, v]) => { text = text.split('{' + k + '}').join(String(v)); });
+      return text;
+    }
+
     function pct(v) { return v == null ? '–' : Math.round(v * 100) + ' %'; }
     function hhmm(m) {
       m = ((Math.round(m) % 1440) + 1440) % 1440;
@@ -294,7 +304,7 @@
     }
     function tempWords(t) {
       if (t == null) return '';
-      return t >= 0.7 ? 'varmt lys' : t >= 0.35 ? 'nøytralt lys' : 'kaldt dagslys';
+      return t >= 0.7 ? tr('settings.warmLight') : t >= 0.35 ? tr('settings.neutralLight') : tr('settings.coolDaylight');
     }
 
     // "Now" on the Homey's own clock (its time zone may differ from the phone's)
@@ -302,7 +312,7 @@
       const tz = status && status.timeZone ? status.timeZone : undefined;
       const d = new Date();
       const minutes = C.zonedMinutesOfDay(d, tz);
-      const free = C.freeDays(d, tz);
+      const free = C.freeDays(d, tz, config.holidays);
       return { minutes, free, weekend: C.isWeekendAt(free, minutes) };
     }
     function sunTimes() {
@@ -335,11 +345,11 @@
       if (ids.length === 0) return null;
       const n = ids.length;
       return h('div', { class: 'banner' }, [
-        (n === 1 ? '1 lys' : n + ' lys') + ' i rommet finnes ikke lenger i Homey (slettet, eller paret på nytt og fått ny ID). ',
+        (n === 1 ? tr('settings.missingOne') : tr('settings.missingMany', { n })) + ' ',
         h('button', {
           type: 'button',
           class: 'link',
-          text: n === 1 ? 'Fjern det fra rommet' : 'Fjern dem fra rommet',
+          text: n === 1 ? tr('settings.removeIt') : tr('settings.removeThem'),
           onclick: () => {
             group.deviceIds = group.deviceIds.filter((id) => !ids.includes(id));
             onRemoved();
@@ -350,7 +360,7 @@
 
     function deviceName(id) {
       const d = devices.find((x) => x.id === id);
-      return d ? d.name : 'Ukjent lys';
+      return d ? d.name : tr('settings.unknownLight');
     }
 
     // --- saving ---
@@ -365,17 +375,17 @@
         msg.className = 'msg ' + (cls || '');
         return;
       }
-      msg.textContent = dirty ? 'Endringer er ikke lagret' : '';
+      msg.textContent = dirty ? tr('settings.unsaved') : '';
       msg.className = 'msg' + (dirty ? ' dirty' : '');
     }
     function save() {
       return HomeyRef.api('POST', '/config', config).then(() => {
         savedJson = JSON.stringify(config);
-        updateSaveBar('Lagret ✓', 'ok');
+        updateSaveBar(tr('settings.saved'), 'ok');
         setTimeout(() => updateSaveBar(), 2000);
         return loadStatus();
       }).catch((err) => {
-        updateSaveBar('Kunne ikke lagre: ' + (err && err.message ? err.message : err), 'dirty');
+        updateSaveBar(tr('settings.saveFailed') + (err && err.message ? err.message : err), 'dirty');
       });
     }
 
@@ -418,10 +428,10 @@
 
     function renderOverview(root) {
       root.append(h('div', { class: 'top' }, [
-        h('h1', { text: 'Døgnrytmelys' }),
+        h('h1', { text: tr('settings.appName') }),
         h('div', { class: 'row', style: 'min-height:0' }, [
-          h('span', { class: 'small muted', text: config.enabled !== false ? 'På' : 'Av' }),
-          switchButton(config.enabled !== false, 'Døgnrytmestyring for hele appen', (on) => {
+          h('span', { class: 'small muted', text: config.enabled !== false ? tr('settings.on') : tr('settings.off') }),
+          switchButton(config.enabled !== false, tr('settings.appSwitch'), (on) => {
             config.enabled = on;
             save();
             renderSoon();
@@ -430,10 +440,10 @@
       ]));
 
       if (config.enabled === false) {
-        root.append(h('div', { class: 'banner', text: 'Døgnrytmestyring er skrudd av for hele appen. Lysene styres ikke.' }));
+        root.append(h('div', { class: 'banner', text: tr('settings.appOff') }));
       }
       if (config.groups.length === 0) {
-        root.append(h('p', { class: 'muted', text: 'Ingen rom ennå. Lag et rom og velg hvilke lys som skal følge døgnrytmen.' }));
+        root.append(h('p', { class: 'muted', text: tr('settings.noRooms') }));
       }
 
       const now = homeyNow();
@@ -442,7 +452,7 @@
       root.append(h('div', { class: 'overview-actions' }, [
         h('button', {
           type: 'button',
-          text: '+ Nytt rom',
+          text: tr('settings.addRoom'),
           onclick: () => {
             const g = defaultGroup();
             config.groups.push(g);
@@ -451,62 +461,78 @@
         }),
         h('button', {
           type: 'button',
-          text: 'Lås opp alle lys',
+          text: tr('settings.resumeAll'),
           onclick: () => HomeyRef.api('POST', '/resume-all').then(loadStatus)
-            .catch((err) => updateSaveBar('Kunne ikke låse opp: ' + err.message, 'dirty')),
+            .catch((err) => updateSaveBar(tr('settings.resumeFailed') + err.message, 'dirty')),
         }),
       ]));
 
+      root.append(buildHolidays());
       root.append(buildBackup());
+    }
+
+    function buildHolidays() {
+      const select = h('select', { id: 'holidays', style: 'font: inherit; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px;' }, [
+        ['NO', tr('settings.holidaysNorway')], ['none', tr('settings.holidaysNone')],
+      ].map(([value, text]) => {
+        const o = h('option', { value, text });
+        if ((config.holidays || 'none') === value) o.selected = true;
+        return o;
+      }));
+      select.addEventListener('change', () => { config.holidays = select.value; save(); });
+      return h('div', { class: 'section' }, [
+        h('div', { class: 'row' }, [h('label', { for: 'holidays', text: tr('settings.holidays') }), select]),
+        h('p', { class: 'hint', text: tr('settings.holidaysHint') }),
+      ]);
     }
 
     // --- backup: all settings as text, to keep somewhere safe and paste back ---
 
     function buildBackup() {
-      const box = h('details', { class: 'section' }, [h('summary', { class: 'small muted', text: 'Sikkerhetskopi av innstillingene' })]);
+      const box = h('details', { class: 'section' }, [h('summary', { class: 'small muted', text: tr('settings.backupTitle') })]);
       const msg = h('p', { class: 'hint' });
-      const area = h('textarea', { rows: '6', style: 'width:100%; font: 12px ui-monospace, monospace; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px;', 'aria-label': 'Innstillinger som tekst' });
+      const area = h('textarea', { rows: '6', style: 'width:100%; font: 12px ui-monospace, monospace; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px;', 'aria-label': tr('settings.backupArea') });
 
-      const copyBtn = h('button', { type: 'button', text: 'Kopier innstillingene' });
+      const copyBtn = h('button', { type: 'button', text: tr('settings.backupCopy') });
       copyBtn.addEventListener('click', () => {
         const text = JSON.stringify({ app: 'com.oystein.circadian', saved: new Date().toISOString(), config: JSON.parse(savedJson) });
         area.value = text;
-        const done = () => { msg.textContent = 'Kopiert. Lim teksten inn et trygt sted, f.eks. i et notat eller en e-post til deg selv.'; };
+        const done = () => { msg.textContent = tr('settings.backupCopied'); };
         const manual = () => {
           area.focus();
           area.select();
-          msg.textContent = 'Teksten er markert i feltet over. Kopier den derfra.';
+          msg.textContent = tr('settings.backupSelected');
         };
         if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, manual);
         else manual();
       });
 
       let armed = false;
-      const restoreBtn = h('button', { type: 'button', text: 'Gjenopprett fra teksten' });
+      const restoreBtn = h('button', { type: 'button', text: tr('settings.backupRestore') });
       restoreBtn.addEventListener('click', () => {
         let parsed;
         try {
           parsed = JSON.parse(area.value);
         } catch (err) {
-          msg.textContent = 'Lim inn teksten fra en sikkerhetskopi i feltet over først.';
+          msg.textContent = tr('settings.backupPasteFirst');
           return;
         }
         const cfg = parsed && parsed.config ? parsed.config : parsed;
         if (!cfg || !Array.isArray(cfg.groups)) {
-          msg.textContent = 'Teksten ser ikke ut som en sikkerhetskopi fra Døgnrytmelys.';
+          msg.textContent = tr('settings.backupInvalid');
           return;
         }
         if (!armed) {
           armed = true;
-          restoreBtn.textContent = 'Trykk igjen for å erstatte alle innstillingene';
-          setTimeout(() => { armed = false; restoreBtn.textContent = 'Gjenopprett fra teksten'; }, 5000);
+          restoreBtn.textContent = tr('settings.backupConfirm');
+          setTimeout(() => { armed = false; restoreBtn.textContent = tr('settings.backupRestore'); }, 5000);
           return;
         }
         config = normalizeConfig(cfg);
         save().then(render);
       });
 
-      box.append(h('p', { class: 'hint', text: 'Innstillingene overlever oppdateringer, men ikke at appen avinstalleres eller Homey tilbakestilles. Kopier dem og ta vare på teksten. Lys som er paret på nytt etterpå, må velges på nytt i rommene.' }));
+      box.append(h('p', { class: 'hint', text: tr('settings.backupHint') }));
       box.append(h('div', { class: 'simulate-row' }, [copyBtn, restoreBtn]));
       box.append(area);
       box.append(msg);
@@ -534,7 +560,7 @@
     function daylightText(group) {
       const g = groupStatus(group);
       if (!group.luxEnabled || !g || g.lux == null) return '';
-      return ' · dagslys ' + g.lux + ' lux';
+      return tr('settings.daylightInline') + g.lux + tr('settings.luxUnit');
     }
 
     function roomCard(group, now) {
@@ -558,7 +584,7 @@
       const lamps = h('div', { class: 'lamps' });
       present.forEach((id) => lamps.append(lampTile(id)));
       if (present.length === 0) {
-        lamps.append(h('span', { class: 'hint', text: 'Ingen lys valgt ennå.' }));
+        lamps.append(h('span', { class: 'hint', text: tr('settings.noLights') }));
       }
 
       const marker = h('span', { class: 'now' });
@@ -569,12 +595,12 @@
       return h('div', { class: 'room' + (enabled ? '' : ' off') }, [
         h('div', { class: 'room-head' }, [
           glow,
-          h('h2', { text: group.name || 'Uten navn' }),
-          h('span', { class: 'chip', text: (group.mode === 'keyframes' ? 'Egne punkter' : 'Følger sola') + (weekendNow ? ' · helg' : '') }),
+          h('h2', { text: group.name || tr('settings.unnamed') }),
+          h('span', { class: 'chip', text: (group.mode === 'keyframes' ? tr('settings.modeKeyframes') : tr('settings.followsSun')) + (weekendNow ? tr('settings.weekendSuffix') : '') }),
         ]),
         h('div', { class: 'room-now' }, [
-          h('span', { class: 'big num', text: 'Varme ' + pct(v.temp) + (v.dim != null ? ' · lys ' + pct(v.dim) : '') }),
-          h('span', { class: 'small muted', text: enabled ? tempWords(v.temp) + ' nå' + daylightText(group) : 'skrudd av' }),
+          h('span', { class: 'big num', text: tr('settings.warmthPrefix') + pct(v.temp) + (v.dim != null ? tr('settings.lightInline') + pct(v.dim) : '') }),
+          h('span', { class: 'small muted', text: enabled ? tempWords(v.temp) + tr('settings.nowSuffix') + daylightText(group) : tr('settings.switchedOff') }),
         ]),
         strip,
         h('div', { class: 'strip-labels' }, ['00', '06', '12', '18', '24'].map((t) => h('span', { text: t }))),
@@ -582,14 +608,14 @@
         missingNote(group, () => { save(); render(); }),
         h('div', { class: 'room-foot' }, [
           h('div', { class: 'toggle' }, [
-            switchButton(group.enabled !== false, 'Døgnrytme for ' + (group.name || 'rommet'), (on) => {
+            switchButton(group.enabled !== false, tr('settings.rhythmFor') + (group.name || tr('settings.theRoom')), (on) => {
               group.enabled = on;
               save();
               renderSoon();
             }),
-            h('span', { text: 'Døgnrytme' }),
+            h('span', { text: tr('settings.rhythm') }),
           ]),
-          h('button', { type: 'button', class: 'link', text: 'Endre plan ›', onclick: () => openRoom(group.id) }),
+          h('button', { type: 'button', class: 'link', text: tr('settings.editPlan'), onclick: () => openRoom(group.id) }),
         ]),
       ]);
     }
@@ -597,18 +623,18 @@
     function lampTile(id) {
       const l = lightStatus(id);
       const name = l ? l.name : deviceName(id);
-      let text = 'Venter på status';
+      let text = tr('settings.waitingStatus');
       let color = null;
       let strength = 0.6;
       if (l) {
-        if (l.on === false) text = 'Av';
+        if (l.on === false) text = tr('settings.off');
         else if (l.on) {
           color = lightCss(l.temp);
           strength = l.dim == null ? 0.7 : l.dim;
-          text = (l.temp != null ? 'varme ' + pct(l.temp) + ' · ' : '') + 'lys ' + pct(l.dim);
+          text = (l.temp != null ? tr('settings.warmthLower') + pct(l.temp) + ' · ' : '') + tr('settings.brightnessLower') + pct(l.dim);
         }
-        if (l.lock) text = (l.lock === 'untilOff' ? 'Pause til av' : 'Låst') + ' · trykk for å låse opp';
-        else if (l.waking) text = 'Soloppgangsvekking · ' + text;
+        if (l.lock) text = (l.lock === 'untilOff' ? tr('settings.pausedUntilOff') : tr('settings.locked')) + tr('settings.tapToUnlock');
+        else if (l.waking) text = tr('settings.wakingPrefix') + text;
         else if (l.status && l.status.check === 'error') text = l.status.text;
       }
       const bulb = h('span', { class: 'bulb' + (color ? '' : ' off') });
@@ -624,7 +650,7 @@
           class: cls,
           'aria-label': name + ': ' + text,
           onclick: () => HomeyRef.api('POST', '/resume', { deviceId: id }).then(loadStatus)
-            .catch((err) => updateSaveBar('Kunne ikke låse opp: ' + err.message, 'dirty')),
+            .catch((err) => updateSaveBar(tr('settings.resumeFailed') + err.message, 'dirty')),
         }, children);
       }
       return h('div', { class: cls, title: l && l.status ? l.status.text : '' }, children);
@@ -644,21 +670,21 @@
       if (!Array.isArray(group.keyframes)) group.keyframes = [];
       if (!Array.isArray(group.weekendKeyframes)) group.weekendKeyframes = [];
 
-      const nameInput = h('input', { type: 'text', class: 'group-name', 'aria-label': 'Navn på rommet', placeholder: 'Navn på rommet' });
+      const nameInput = h('input', { type: 'text', class: 'group-name', 'aria-label': tr('settings.roomName'), placeholder: tr('settings.roomName') });
       nameInput.value = group.name || '';
       nameInput.addEventListener('input', () => { group.name = nameInput.value; });
 
       root.append(h('div', { class: 'back-row' }, [
-        h('button', { type: 'button', class: 'link', text: '‹ Alle rom', onclick: () => { view = { name: 'overview' }; render(); } }),
+        h('button', { type: 'button', class: 'link', text: tr('settings.allRooms'), onclick: () => { view = { name: 'overview' }; render(); } }),
         h('div', { class: 'row', style: 'min-height:0' }, [
-          h('span', { class: 'small muted', text: 'Døgnrytme' }),
-          switchButton(group.enabled !== false, 'Døgnrytme for rommet', (on) => { group.enabled = on; updateSaveBar(); }),
+          h('span', { class: 'small muted', text: tr('settings.rhythm') }),
+          switchButton(group.enabled !== false, tr('settings.rhythmForRoom'), (on) => { group.enabled = on; updateSaveBar(); }),
         ]),
       ]));
       root.append(nameInput);
 
-      root.append(h('div', { class: 'seg', role: 'group', 'aria-label': 'Plan' }, [
-        ['sun', 'Følg sola'], ['keyframes', 'Egne punkter'],
+      root.append(h('div', { class: 'seg', role: 'group', 'aria-label': tr('settings.plan') }, [
+        ['sun', tr('settings.modeSun')], ['keyframes', tr('settings.modeKeyframes')],
       ].map(([id, text]) => h('button', {
         type: 'button',
         'aria-pressed': String((group.mode || 'sun') === id),
@@ -669,15 +695,15 @@
       // Plan: weekend switch, weekday/weekend tabs, the clock
       const plan = h('div', { class: 'section' });
       plan.append(h('div', { class: 'row' }, [
-        h('label', { text: WEEKEND_LABEL }),
-        switchButton(!!group.weekendEnabled, WEEKEND_LABEL, (on) => { group.weekendEnabled = on; renderSoon(); }),
+        h('label', { text: WEEKEND_LABEL() }),
+        switchButton(!!group.weekendEnabled, WEEKEND_LABEL(), (on) => { group.weekendEnabled = on; renderSoon(); }),
       ]));
       if (group.weekendEnabled) {
-        plan.append(h('p', { class: 'hint', text: 'Gjelder fra kl. 12 dagen før en lørdag, søndag eller rød dag (også julaften og nyttårsaften) til kl. 12 på dagen. Kvelden før en arbeidsdag følger hverdagsplanen.' }));
+        plan.append(h('p', { class: 'hint', text: tr('settings.weekendHint') }));
       }
       if (group.weekendEnabled) {
-        plan.append(h('div', { class: 'seg', role: 'group', 'aria-label': 'Vis plan for' }, [
-          ['weekday', 'Hverdag'], ['weekend', 'Helg'],
+        plan.append(h('div', { class: 'seg', role: 'group', 'aria-label': tr('settings.showPlanFor') }, [
+          ['weekday', tr('settings.weekday')], ['weekend', tr('settings.weekend')],
         ].map(([id, text]) => h('button', {
           type: 'button',
           'aria-pressed': String(ui.tab === id),
@@ -699,13 +725,13 @@
       refreshDial = () => { dial.redraw(); if (group.mode === 'keyframes') redrawEditor(); };
 
       if (group.mode !== 'keyframes') {
-        const sunBox = h('div', { class: 'section' }, [h('h3', { text: 'Sola og tider' })]);
+        const sunBox = h('div', { class: 'section' }, [h('h3', { text: tr('settings.sunAndTimes') })]);
         sunBox.append(buildSunControls(group, dial.redraw));
         root.append(sunBox);
       }
 
       const lightsBox = h('div', { class: 'section' }, [
-        h('h3', { text: 'Lys i rommet' }),
+        h('h3', { text: tr('settings.lightsInRoom') }),
         missingNote(group, render),
       ]);
       const list = h('div', { class: 'devices-list' });
@@ -714,26 +740,26 @@
       lightsBox.append(buildTestColor(group));
       root.append(lightsBox);
 
-      const wake = h('div', { class: 'section' }, [h('h3', { text: 'Vekking' })]);
+      const wake = h('div', { class: 'section' }, [h('h3', { text: tr('settings.wakeUp') })]);
       wake.append(buildWakeUpControls(group));
       root.append(wake);
 
-      const daylight = h('div', { class: 'section' }, [h('h3', { text: 'Dagslys' })]);
+      const daylight = h('div', { class: 'section' }, [h('h3', { text: tr('settings.daylight') })]);
       daylight.append(buildDaylightControls(group));
       root.append(daylight);
 
-      const more = h('div', { class: 'section' }, [h('h3', { text: 'Mer' })]);
+      const more = h('div', { class: 'section' }, [h('h3', { text: tr('settings.more') })]);
       more.append(buildCommonControls(group));
       more.append(buildSimulateRow(group));
       root.append(more);
 
       let armed = false;
-      const del = h('button', { type: 'button', class: 'danger', text: 'Slett rommet' });
+      const del = h('button', { type: 'button', class: 'danger', text: tr('settings.deleteRoom') });
       del.addEventListener('click', () => {
         if (!armed) {
           armed = true;
-          del.textContent = 'Trykk igjen for å slette (lagres når du trykker Lagre)';
-          setTimeout(() => { armed = false; del.textContent = 'Slett rommet'; }, 4000);
+          del.textContent = tr('settings.deleteConfirm');
+          setTimeout(() => { armed = false; del.textContent = tr('settings.deleteRoom'); }, 4000);
           return;
         }
         config.groups = config.groups.filter((g) => g.id !== group.id);
@@ -751,10 +777,10 @@
      */
     function buildDial(group, ui, onPointsChanged) {
       const SIZE = 320, CX = 160, R = 112, RING = 22, CENTRE = 58;
-      const svg = s('svg', { class: 'dial', viewBox: '0 0 ' + SIZE + ' ' + SIZE, role: 'img', 'aria-label': 'Døgnklokke med lysfarge og lysstyrke' });
+      const svg = s('svg', { class: 'dial', viewBox: '0 0 ' + SIZE + ' ' + SIZE, role: 'img', 'aria-label': tr('settings.dialLabel') });
       let preview = null;
       let drag = null; // { type: 'point', index, overTrash } | { type: 'hand' }
-      const resetBtn = h('button', { type: 'button', class: 'link', text: 'Tilbake til nå', hidden: true });
+      const resetBtn = h('button', { type: 'button', class: 'link', text: tr('settings.backToNow'), hidden: true });
       const hint = h('p', { class: 'hint' });
       const wrap = h('div', { class: 'dial-wrap' }, [svg, h('div', { class: 'dial-foot' }, [hint, resetBtn])]);
       resetBtn.addEventListener('click', () => { preview = null; redraw(); });
@@ -822,10 +848,10 @@
           const sun = sunTimes();
           const useSun = !weekend() && group.useSunTimes !== false && sun.sunriseMinutes != null;
           const marks = useSun
-            ? [[sun.sunriseMinutes, 'Soloppgang'], [sun.sunsetMinutes, 'Solnedgang']]
+            ? [[sun.sunriseMinutes, tr('settings.sunrise')], [sun.sunsetMinutes, tr('settings.sunset')]]
             : weekend()
-              ? [[toMin(group.weekendWakeTime || group.wakeTime), 'Våkne (helg)'], [toMin(group.weekendSleepTime || group.sleepTime), 'Legge seg (helg)']]
-              : [[toMin(group.wakeTime), 'Våkne'], [toMin(group.sleepTime), 'Legge seg']];
+              ? [[toMin(group.weekendWakeTime || group.wakeTime), tr('settings.wakeWeekend')], [toMin(group.weekendSleepTime || group.sleepTime), tr('settings.sleepWeekend')]]
+              : [[toMin(group.wakeTime), tr('settings.wake')], [toMin(group.sleepTime), tr('settings.sleep')]];
           marks.forEach(([m, title]) => {
             const [x, y] = pos(m, R + RING / 2 + 6);
             const c = s('circle', { cx: x, cy: y, r: 5 }, svg);
@@ -869,21 +895,21 @@
         if (drag && drag.type === 'point') {
           centre.style.fill = drag.overTrash ? 'var(--danger)' : 'var(--surface)';
           centre.style.stroke = 'var(--danger)';
-          label(CX, CX + 5, 'Slipp her for å slette', 'fill: ' + (drag.overTrash ? '#fff' : 'var(--danger)') + '; font-size: 11.5px;');
+          label(CX, CX + 5, tr('settings.dropToDelete'), 'fill: ' + (drag.overTrash ? '#fff' : 'var(--danger)') + '; font-size: 11.5px;');
         } else {
           centre.style.fill = 'var(--surface)';
           centre.style.stroke = 'var(--border)';
           const v = val(at);
-          label(CX, CX - 24, (preview != null ? 'kl. ' : 'nå ') + hhmm(at), 'fill: var(--muted); font-size: 12px;');
+          label(CX, CX - 24, (preview != null ? tr('settings.at') : tr('settings.nowPrefix')) + hhmm(at), 'fill: var(--muted); font-size: 12px;');
           label(CX, CX + 6, pct(v.temp), 'fill: var(--text); font-size: 26px; font-weight: 700;');
           label(CX, CX + 24, tempWords(v.temp), 'fill: var(--muted); font-size: 11.5px;');
-          if (v.dim != null) label(CX, CX + 40, 'lysstyrke ' + pct(v.dim), 'fill: var(--muted); font-size: 11.5px;');
+          if (v.dim != null) label(CX, CX + 40, tr('settings.brightnessPrefix') + pct(v.dim), 'fill: var(--muted); font-size: 11.5px;');
         }
 
         resetBtn.hidden = preview == null;
         hint.textContent = isKf()
-          ? 'Trykk på ringen for å legge til et punkt. Dra et punkt for å flytte det, eller inn i midten for å slette det.'
-          : 'Ringen viser lysfargen, strekene lysstyrken. Dra viseren for å se en annen tid.';
+          ? tr('settings.dialHintKeyframes')
+          : tr('settings.dialHintSun');
       }
 
       function svgPoint(evt) {
@@ -960,11 +986,11 @@
 
       if (ui.tab === 'weekend' && list.length === 0) {
         holder.append(h('p', { class: 'hint' }, [
-          'Ingen helgepunkter ennå, så hverdagspunktene (svake på klokka) brukes i helgen. Trykk på ringen for å lage egne, eller ',
+          tr('settings.noWeekendPoints'),
           h('button', {
             type: 'button',
             class: 'link',
-            text: 'start med en kopi av hverdagspunktene',
+            text: tr('settings.copyWeekdayPoints'),
             onclick: () => {
               group.weekendKeyframes = group.keyframes.map((k) => Object.assign({}, k));
               ui.selected = -1;
@@ -976,30 +1002,30 @@
         return;
       }
       if (list.length === 0) {
-        holder.append(h('p', { class: 'hint', text: 'Ingen punkter ennå. Trykk på ringen for å legge til det første.' }));
+        holder.append(h('p', { class: 'hint', text: tr('settings.noPoints') }));
         return;
       }
 
       const kf = list[ui.selected];
       if (kf) {
-        const timeInput = h('input', { type: 'time', 'aria-label': 'Klokkeslett' });
+        const timeInput = h('input', { type: 'time', 'aria-label': tr('settings.time') });
         timeInput.value = kf.time;
         timeInput.addEventListener('change', () => { kf.time = timeInput.value; redrawDial(); again(); });
 
-        const tempLabel = h('label', { text: 'Varme: ' + pct(kf.temp) });
-        const tempInput = h('input', { type: 'range', class: 'temp-slider', min: '0', max: '1', step: '0.05', 'aria-label': 'Varme' });
+        const tempLabel = h('label', { text: tr('settings.warmthColon') + pct(kf.temp) });
+        const tempInput = h('input', { type: 'range', class: 'temp-slider', min: '0', max: '1', step: '0.05', 'aria-label': tr('settings.warmth') });
         tempInput.value = kf.temp;
-        tempInput.addEventListener('input', () => { kf.temp = Number(tempInput.value); tempLabel.textContent = 'Varme: ' + pct(kf.temp); redrawDial(); });
+        tempInput.addEventListener('input', () => { kf.temp = Number(tempInput.value); tempLabel.textContent = tr('settings.warmthColon') + pct(kf.temp); redrawDial(); });
         tempInput.addEventListener('change', again);
 
-        const dimLabel = h('label', { text: 'Lysstyrke: ' + pct(kf.dim) });
-        const dimInput = h('input', { type: 'range', min: '0', max: '1', step: '0.05', 'aria-label': 'Lysstyrke' });
+        const dimLabel = h('label', { text: tr('settings.brightnessColon') + pct(kf.dim) });
+        const dimInput = h('input', { type: 'range', min: '0', max: '1', step: '0.05', 'aria-label': tr('settings.brightness') });
         dimInput.value = kf.dim;
-        dimInput.addEventListener('input', () => { kf.dim = Number(dimInput.value); dimLabel.textContent = 'Lysstyrke: ' + pct(kf.dim); redrawDial(); });
+        dimInput.addEventListener('input', () => { kf.dim = Number(dimInput.value); dimLabel.textContent = tr('settings.brightnessColon') + pct(kf.dim); redrawDial(); });
         dimInput.addEventListener('change', again);
 
         holder.append(h('div', { class: 'kf-panel' }, [
-          h('div', { class: 'row' }, [h('b', { text: 'Valgt punkt' }), timeInput]),
+          h('div', { class: 'row' }, [h('b', { text: tr('settings.selectedPoint') }), timeInput]),
           tempLabel, tempInput,
           dimLabel, dimInput,
           h('div', { class: 'row' }, [
@@ -1007,7 +1033,7 @@
             h('button', {
               type: 'button',
               class: 'danger',
-              text: 'Slett punkt',
+              text: tr('settings.deletePoint'),
               onclick: () => { list.splice(ui.selected, 1); ui.selected = -1; redrawDial(); again(); updateSaveBar(); },
             }),
           ]),
@@ -1023,7 +1049,7 @@
           class: 'kf-row num',
           'aria-pressed': String(i === ui.selected),
           onclick: () => { ui.selected = i; redrawDial(); again(); },
-        }, [sw, k.time + '  ·  varme ' + pct(k.temp) + '  ·  lys ' + pct(k.dim)]);
+        }, [sw, k.time + tr('settings.listWarmth') + pct(k.temp) + tr('settings.listBrightness') + pct(k.dim)]);
       });
       holder.append(h('div', { class: 'kf-list' }, rows));
     }
@@ -1055,30 +1081,30 @@
       const wrap = h('div', { class: 'stack' });
       const changed = (fn) => (v) => { fn(v); redrawDial(); updateSaveBar(); };
 
-      wrap.append(labeledRow('Følg soloppgang og solnedgang', switchButton(group.useSunTimes !== false, 'Følg soloppgang og solnedgang', changed((on) => { group.useSunTimes = on; }))));
-      wrap.append(labeledRow('Våkne (når sola ikke følges)', timeField(group.wakeTime, changed((v) => { group.wakeTime = v; }))));
-      wrap.append(labeledRow('Legge seg (når sola ikke følges)', timeField(group.sleepTime, changed((v) => { group.sleepTime = v; }))));
+      wrap.append(labeledRow(tr('settings.followSunTimes'), switchButton(group.useSunTimes !== false, tr('settings.followSunTimes'), changed((on) => { group.useSunTimes = on; }))));
+      wrap.append(labeledRow(tr('settings.wakeFixed'), timeField(group.wakeTime, changed((v) => { group.wakeTime = v; }))));
+      wrap.append(labeledRow(tr('settings.sleepFixed'), timeField(group.sleepTime, changed((v) => { group.sleepTime = v; }))));
       if (group.weekendEnabled) {
-        wrap.append(labeledRow('Helg: våkne', timeField(group.weekendWakeTime || '08:30', changed((v) => { group.weekendWakeTime = v; })), 'sub-row'));
-        wrap.append(labeledRow('Helg: legge seg', timeField(group.weekendSleepTime || '23:30', changed((v) => { group.weekendSleepTime = v; })), 'sub-row'));
-        wrap.append(h('p', { class: 'hint sub-row', text: 'I helgen og på røde dager brukes disse tidene i stedet for sola og tidene over.' }));
+        wrap.append(labeledRow(tr('settings.weekendWake'), timeField(group.weekendWakeTime || '08:30', changed((v) => { group.weekendWakeTime = v; })), 'sub-row'));
+        wrap.append(labeledRow(tr('settings.weekendSleep'), timeField(group.weekendSleepTime || '23:30', changed((v) => { group.weekendSleepTime = v; })), 'sub-row'));
+        wrap.append(h('p', { class: 'hint sub-row', text: tr('settings.weekendTimesHint') }));
       }
 
       const trans = h('input', { type: 'number', min: '5', max: '240' });
       trans.value = group.transitionMinutes;
       trans.addEventListener('change', changed(() => { group.transitionMinutes = Number(trans.value); }));
-      wrap.append(labeledRow('Overgang (minutter)', trans));
+      wrap.append(labeledRow(tr('settings.transition'), trans));
 
-      wrap.append(percentRow('Varme om natta', group.warmValue, 'temp-slider', changed((v) => { group.warmValue = v; })));
-      wrap.append(percentRow('Varme midt på dagen', group.coolValue, 'temp-slider', changed((v) => { group.coolValue = v; })));
+      wrap.append(percentRow(tr('settings.warmthNight'), group.warmValue, 'temp-slider', changed((v) => { group.warmValue = v; })));
+      wrap.append(percentRow(tr('settings.warmthDay'), group.coolValue, 'temp-slider', changed((v) => { group.coolValue = v; })));
 
-      wrap.append(labeledRow('Juster også lysstyrke', switchButton(!!group.adjustBrightness, 'Juster også lysstyrke', (on) => {
+      wrap.append(labeledRow(tr('settings.adjustBrightness'), switchButton(!!group.adjustBrightness, tr('settings.adjustBrightness'), (on) => {
         group.adjustBrightness = on;
         renderSoon();
       })));
       if (group.adjustBrightness) {
-        wrap.append(percentRow('Lysstyrke om natta', group.nightDim, '', changed((v) => { group.nightDim = v; })));
-        wrap.append(percentRow('Lysstyrke midt på dagen', group.dayDim, '', changed((v) => { group.dayDim = v; })));
+        wrap.append(percentRow(tr('settings.brightnessNight'), group.nightDim, '', changed((v) => { group.nightDim = v; })));
+        wrap.append(percentRow(tr('settings.brightnessDay'), group.dayDim, '', changed((v) => { group.dayDim = v; })));
       }
       return wrap;
     }
@@ -1092,9 +1118,9 @@
       const range = historyRange[group.id] || 'day';
       const box = h('div', { class: 'section' }, [
         h('div', { class: 'row', style: 'min-height:0' }, [
-          h('h3', { text: 'Historikk' }),
-          h('div', { class: 'seg history-seg', role: 'group', 'aria-label': 'Tidsrom' }, [
-            ['day', 'Siste døgn'], ['week', 'Siste uke'],
+          h('h3', { text: tr('settings.history') }),
+          h('div', { class: 'seg history-seg', role: 'group', 'aria-label': tr('settings.period') }, [
+            ['day', tr('settings.lastDay')], ['week', tr('settings.lastWeek')],
           ].map(([id, text]) => h('button', {
             type: 'button',
             'aria-pressed': String(range === id),
@@ -1103,20 +1129,21 @@
           }))),
         ]),
       ]);
-      const holder = h('div', { class: 'stack', style: 'gap:8px' }, [h('p', { class: 'hint', text: 'Henter...' })]);
+      const holder = h('div', { class: 'stack', style: 'gap:8px' }, [h('p', { class: 'hint', text: tr('settings.loading') })]);
       box.append(holder);
 
       const key = group.id + ':' + range;
       const cached = historyCache[key];
-      const show = (data) => {
+      const show = (raw) => {
+        const data = Object.assign({ range, temp: [], dim: [], lux: [] }, raw || {});
         holder.innerHTML = '';
         if (!data.dim.length && !data.temp.length) {
-          holder.append(h('p', { class: 'hint', text: 'Ingen historikk ennå. Appen logger hvert 2. minutt mens døgnrytmen er på, så grafen fylles etter hvert.' }));
+          holder.append(h('p', { class: 'hint', text: tr('settings.noHistory') }));
           return;
         }
         holder.append(historyChart(data));
         if (data.lux.length) holder.append(luxChart(data));
-        holder.append(h('p', { class: 'hint', text: 'Høyden er lysstyrken lysene fikk, og fargen er lysfargen. Dra fingeren over grafen for å se verdiene. De samme tallene finnes i Homey under Insights.' }));
+        holder.append(h('p', { class: 'hint', text: tr('settings.historyHint') }));
       };
       if (cached && Date.now() - cached.at < 120000) show(cached.data);
       else {
@@ -1125,7 +1152,7 @@
           show(data);
         }).catch((err) => {
           holder.innerHTML = '';
-          holder.append(h('p', { class: 'hint', text: 'Kunne ikke hente historikk: ' + (err && err.message ? err.message : err) }));
+          holder.append(h('p', { class: 'hint', text: tr('settings.historyFailed') + (err && err.message ? err.message : err) }));
         });
       }
       return box;
@@ -1166,7 +1193,7 @@
         l.style.stroke = 'var(--border-soft)';
         const label = s('text', { x, y: bottom + 12, 'text-anchor': 'middle' }, svg);
         label.textContent = range === 'week'
-          ? new Date(t).toLocaleDateString('nb-NO', { weekday: 'short' }).replace('.', '')
+          ? new Date(t).toLocaleDateString(tr('settings.locale'), { weekday: 'short' }).replace('.', '')
           : String(new Date(t).getHours()).padStart(2, '0');
       });
     }
@@ -1175,7 +1202,7 @@
       const H = 150, TOP = 8, BOTTOM = 128;
       const frame = historyFrame(data);
       const y = (v) => BOTTOM - (v / 100) * (BOTTOM - TOP);
-      const svg = s('svg', { class: 'history-chart', viewBox: '0 0 ' + HW + ' ' + H, role: 'img', 'aria-label': 'Lysstyrke og lysfarge ' + (data.range === 'week' ? 'siste uke' : 'siste døgn') });
+      const svg = s('svg', { class: 'history-chart', viewBox: '0 0 ' + HW + ' ' + H, role: 'img', 'aria-label': tr('settings.historyLabel') + (data.range === 'week' ? tr('settings.lastWeekLower') : tr('settings.lastDayLower')) });
 
       [0, 50, 100].forEach((v) => {
         const l = s('line', { x1: HPAD_L, x2: HW - HPAD_R, y1: y(v), y2: y(v), 'stroke-width': 1 }, svg);
@@ -1209,9 +1236,9 @@
         const temp = nearest(data.temp, t);
         const lux = nearest(data.lux, t);
         return [
-          (data.dim.length ? 'lysstyrke <b>' + Math.round(nearest(data.dim, t)) + ' %</b>' : null),
-          (temp != null ? 'varme <b>' + Math.round(temp) + ' %</b>' : null),
-          (lux != null ? '<b>' + Math.round(lux) + ' lux</b>' : null),
+          (data.dim.length ? tr('settings.brightnessBold') + Math.round(nearest(data.dim, t)) + ' %</b>' : null),
+          (temp != null ? tr('settings.warmthBold') + Math.round(temp) + ' %</b>' : null),
+          (lux != null ? '<b>' + Math.round(lux) + tr('settings.luxBoldEnd') : null),
         ].filter(Boolean).join(' · ');
       }, (t) => y(nearest(dimSeries, t)));
     }
@@ -1221,7 +1248,7 @@
       const frame = historyFrame(data);
       const maxLog = Math.max(2, Math.ceil(Math.log10(Math.max(...data.lux.map((p) => p[1]), 10))));
       const y = (v) => BOTTOM - (Math.log10(Math.max(1, v)) / maxLog) * (BOTTOM - TOP);
-      const svg = s('svg', { class: 'history-chart', viewBox: '0 0 ' + HW + ' ' + H, role: 'img', 'aria-label': 'Dagslys målt av sensoren' });
+      const svg = s('svg', { class: 'history-chart', viewBox: '0 0 ' + HW + ' ' + H, role: 'img', 'aria-label': tr('settings.luxChartLabel') });
       for (let e = 0; e <= maxLog; e++) {
         if (e !== 0 && e !== maxLog && maxLog > 3 && e % 2) continue;
         const l = s('line', { x1: HPAD_L, x2: HW - HPAD_R, y1: y(10 ** e), y2: y(10 ** e), 'stroke-width': 1 }, svg);
@@ -1235,8 +1262,8 @@
         const p = s('path', { d: seg.map(([t, v], i) => (i ? 'L' : 'M') + frame.x(t).toFixed(1) + ',' + y(v).toFixed(1)).join(' '), fill: 'none', 'stroke-width': 2, 'stroke-linejoin': 'round' }, svg);
         p.style.stroke = 'var(--sun)';
       });
-      const wrap = withHover(svg, frame, H, data.lux, (t) => '<b>' + Math.round(nearest(data.lux, t)) + ' lux</b>', (t) => y(nearest(data.lux, t)));
-      return h('div', { class: 'stack', style: 'gap:2px' }, [h('span', { class: 'small muted', text: 'Dagslys (lux)' }), wrap]);
+      const wrap = withHover(svg, frame, H, data.lux, (t) => '<b>' + Math.round(nearest(data.lux, t)) + tr('settings.luxBoldEnd'), (t) => y(nearest(data.lux, t)));
+      return h('div', { class: 'stack', style: 'gap:2px' }, [h('span', { class: 'small muted', text: tr('settings.luxChartTitle') }), wrap]);
     }
 
     function nearest(points, t) {
@@ -1255,7 +1282,7 @@
       const dot = s('circle', { r: 4, 'stroke-width': 2, visibility: 'hidden' }, svg);
       dot.style.fill = 'var(--text)';
       dot.style.stroke = 'var(--surface)';
-      const label = (t, latest) => (latest ? 'Sist: ' : '<b>' + new Date(t).toLocaleString('nb-NO', { weekday: 'short', hour: '2-digit', minute: '2-digit' }) + '</b> · ') + readoutHtml(t);
+      const label = (t, latest) => (latest ? tr('settings.latest') : '<b>' + new Date(t).toLocaleString(tr('settings.locale'), { weekday: 'short', hour: '2-digit', minute: '2-digit' }) + '</b> · ') + readoutHtml(t);
       const latest = series.length ? series[series.length - 1][0] : null;
       const leave = () => {
         readout.innerHTML = latest != null ? label(latest, true) : '';
@@ -1289,8 +1316,8 @@
       const k = h('input', { type: 'number', min: '2000', max: '6500', step: '100', 'aria-label': 'Kelvin' });
       k.value = 3000;
       const msg = h('p', { class: 'hint' });
-      const stopBtn = h('button', { type: 'button', text: 'Stopp', hidden: true });
-      const btn = h('button', { type: 'button', text: 'Vis testfarge (30 s)' });
+      const stopBtn = h('button', { type: 'button', text: tr('settings.stop'), hidden: true });
+      const btn = h('button', { type: 'button', text: tr('settings.showTestColour') });
       let timer = null;
       const ended = () => {
         clearTimeout(timer);
@@ -1298,9 +1325,9 @@
         btn.disabled = false;
       };
       btn.addEventListener('click', () => {
-        if (!group.deviceIds.length) { msg.textContent = 'Velg minst ett lys i rommet først.'; return; }
+        if (!group.deviceIds.length) { msg.textContent = tr('settings.chooseLightFirst'); return; }
         btn.disabled = true;
-        msg.textContent = 'Lagrer og viser...';
+        msg.textContent = tr('settings.savingAndShowing');
         // Save first, so the test uses the colour ranges just entered
         HomeyRef.api('POST', '/config', config).then(() => {
           savedJson = JSON.stringify(config);
@@ -1309,48 +1336,48 @@
         }).then((res) => {
           const outside = (res.lights || []).filter((l) => !l.inRange).map((l) => l.name);
           const plain = (res.lights || []).filter((l) => !l.calibrated).map((l) => l.name);
-          msg.textContent = 'Alle lysene viser nå ' + res.kelvin + ' K i ' + res.seconds + ' sekunder. Ser en lampe annerledes ut enn de andre, juster fargeområdet dens.'
-            + (outside.length ? ' Utenfor området til: ' + outside.join(', ') + ' (de viser det nærmeste de klarer).' : '')
-            + (plain.length ? ' Uten fargeområde: ' + plain.join(', ') + '.' : '');
+          msg.textContent = tr('settings.testShowing') + res.kelvin + ' K i ' + res.seconds + tr('settings.testSeconds')
+            + (outside.length ? tr('settings.testOutside') + outside.join(', ') + tr('settings.testClosest') : '')
+            + (plain.length ? tr('settings.testNoRange') + plain.join(', ') + '.' : '');
           stopBtn.hidden = false;
-          timer = setTimeout(() => { ended(); msg.textContent = 'Ferdig. Lysene har fått tilbake det de hadde.'; }, res.seconds * 1000);
+          timer = setTimeout(() => { ended(); msg.textContent = tr('settings.testDone'); }, res.seconds * 1000);
         }).catch((err) => {
           ended();
-          msg.textContent = 'Kunne ikke vise testfarge: ' + (err && err.message ? err.message : err);
+          msg.textContent = tr('settings.testFailed') + (err && err.message ? err.message : err);
         });
       });
       stopBtn.addEventListener('click', () => {
-        HomeyRef.api('POST', '/test-color-stop').then(() => { ended(); msg.textContent = 'Stoppet. Lysene har fått tilbake det de hadde.'; }).catch(() => {});
+        HomeyRef.api('POST', '/test-color-stop').then(() => { ended(); msg.textContent = tr('settings.testStopped'); }).catch(() => {});
       });
       return h('div', { class: 'stack', style: 'gap:6px; border-top: 1px solid var(--border-soft); padding-top: 10px' }, [
         h('div', { class: 'simulate-row' }, [k, h('span', { class: 'small muted', text: 'K' }), btn, stopBtn]),
-        h('p', { class: 'hint', text: 'Viser samme farge på alle lysene i rommet, så du kan sammenligne dem og justere fargeområdet. Lysene som er av, slås på under testen.' }),
+        h('p', { class: 'hint', text: tr('settings.testHint') }),
         msg,
       ]);
     }
 
     function buildDaylightControls(group) {
       const wrap = h('div', { class: 'stack' });
-      wrap.append(labeledRow('Demp lysene når det er dagslys', switchButton(!!group.luxEnabled, 'Demp lysene når det er dagslys', (on) => {
+      wrap.append(labeledRow(tr('settings.luxSwitch'), switchButton(!!group.luxEnabled, tr('settings.luxSwitch'), (on) => {
         group.luxEnabled = on;
         renderSoon();
       })));
       if (!group.luxEnabled) {
         wrap.append(h('p', { class: 'hint', text: sensors.length
-          ? 'Bruker en lyssensor i rommet til å skru ned lysstyrken når sola skinner inn, og opp igjen når det er grått og mørkt.'
-          : 'Krever en lyssensor (lux). Mange bevegelsessensorer måler også lys. Fant ingen i Homey.' }));
+          ? tr('settings.luxIntro')
+          : tr('settings.luxNoSensor') }));
         return wrap;
       }
 
-      const select = h('select', { 'aria-label': 'Lyssensor', style: 'max-width: 60%; font: inherit; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px;' });
-      select.append(h('option', { value: '', text: 'Velg sensor' }));
+      const select = h('select', { 'aria-label': tr('settings.luxSensor'), style: 'max-width: 60%; font: inherit; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px;' });
+      select.append(h('option', { value: '', text: tr('settings.chooseSensor') }));
       sensors.forEach((sn) => {
-        const o = h('option', { value: sn.id, text: sn.name + (sn.lux != null ? ' (' + Math.round(sn.lux) + ' lux)' : '') });
+        const o = h('option', { value: sn.id, text: sn.name + (sn.lux != null ? ' (' + Math.round(sn.lux) + tr('settings.luxParenEnd') : '') });
         if (sn.id === group.luxSensorId) o.selected = true;
         select.append(o);
       });
       select.addEventListener('change', () => { group.luxSensorId = select.value || null; updateSaveBar(); });
-      wrap.append(labeledRow('Lyssensor', select));
+      wrap.append(labeledRow(tr('settings.luxSensor'), select));
 
       const num = (value, min, max, onChange) => {
         const i = h('input', { type: 'number', min: String(min), max: String(max), step: '10' });
@@ -1358,30 +1385,30 @@
         i.addEventListener('change', () => { onChange(clamp(Number(i.value) || min, min, max)); updateSaveBar(); });
         return i;
       };
-      wrap.append(labeledRow('Full lysstyrke når mørkere enn (lux)', num(group.luxDark || 50, 1, 5000, (v) => { group.luxDark = v; })));
-      wrap.append(labeledRow('Mest dempet når lysere enn (lux)', num(group.luxBright || 500, 10, 100000, (v) => { group.luxBright = v; })));
-      wrap.append(percentRow('Laveste lysstyrke ved mye dagslys, av planens', group.luxMinFactor != null ? group.luxMinFactor : 0.3, '', (v) => { group.luxMinFactor = v; updateSaveBar(); }));
+      wrap.append(labeledRow(tr('settings.luxDark'), num(group.luxDark || 50, 1, 5000, (v) => { group.luxDark = v; })));
+      wrap.append(labeledRow(tr('settings.luxBright'), num(group.luxBright || 500, 10, 100000, (v) => { group.luxBright = v; })));
+      wrap.append(percentRow(tr('settings.luxMin'), group.luxMinFactor != null ? group.luxMinFactor : 0.3, '', (v) => { group.luxMinFactor = v; updateSaveBar(); }));
 
       const g = groupStatus(group);
       if (g && g.lux != null) {
-        wrap.append(h('p', { class: 'hint', text: 'Nå: ' + g.lux + ' lux (snitt siste 10 min), så lysene får ' + pct(g.luxFactor) + ' av planens lysstyrke.' }));
+        wrap.append(h('p', { class: 'hint', text: tr('settings.nowColon') + g.lux + tr('settings.luxNowMid') + pct(g.luxFactor) + tr('settings.luxNowEnd') }));
       }
-      wrap.append(h('p', { class: 'hint', text: 'Lysstyrken endres bare i de vanlige oppdateringene hvert 2. minutt og bare når forskjellen er over 5 %, så lysene ikke blafrer når en sky passerer.' }));
+      wrap.append(h('p', { class: 'hint', text: tr('settings.luxHint') }));
       return wrap;
     }
 
     function buildWakeUpControls(group) {
       const wrap = h('div', { class: 'stack' });
-      wrap.append(labeledRow('Soloppgangsvekking', switchButton(!!group.wakeUpEnabled, 'Soloppgangsvekking', (on) => {
+      wrap.append(labeledRow(tr('settings.sunriseWakeUp'), switchButton(!!group.wakeUpEnabled, tr('settings.sunriseWakeUp'), (on) => {
         group.wakeUpEnabled = on;
         renderSoon();
       })));
       if (!group.wakeUpEnabled) {
-        wrap.append(h('p', { class: 'hint', text: 'Lys i rommet som er av, slås på helt svakt og varmt før vekketid og glir opp til planens verdier. Fint for soverommet.' }));
+        wrap.append(h('p', { class: 'hint', text: tr('settings.wakeIntro') }));
         return wrap;
       }
-      wrap.append(labeledRow('Vekketid hverdager', timeField(group.wakeUpTime || '06:30', (v) => { group.wakeUpTime = v; updateSaveBar(); })));
-      wrap.append(labeledRow('Vekketid helg og røde dager', timeField(group.wakeUpWeekendTime || '', (v) => { group.wakeUpWeekendTime = v; updateSaveBar(); })));
+      wrap.append(labeledRow(tr('settings.wakeTimeWeekday'), timeField(group.wakeUpTime || '06:30', (v) => { group.wakeUpTime = v; updateSaveBar(); })));
+      wrap.append(labeledRow(tr('settings.wakeTimeWeekend'), timeField(group.wakeUpWeekendTime || '', (v) => { group.wakeUpWeekendTime = v; updateSaveBar(); })));
       const len = h('input', { type: 'number', min: '5', max: '60', step: '5' });
       len.value = group.wakeUpMinutes || 20;
       len.addEventListener('change', () => {
@@ -1392,8 +1419,8 @@
         group.wakeUpMinutes = v;
         updateSaveBar();
       });
-      wrap.append(labeledRow('Varighet (minutter)', len));
-      wrap.append(h('p', { class: 'hint', text: 'Lysene som er av ved start, slås på helt svakt og varmt og glir opp til planens verdier ved vekketid. Lys som allerede er på, røres ikke. Slår du et lys av underveis, stopper vekkingen for det. La helgetiden stå tom for å ikke vekke i helger og på røde dager.' }));
+      wrap.append(labeledRow(tr('settings.duration'), len));
+      wrap.append(h('p', { class: 'hint', text: tr('settings.wakeHint') }));
       return wrap;
     }
 
@@ -1404,8 +1431,8 @@
     function calibrationEditor(d, onDone) {
       config.calibration = config.calibration || {};
       const cal = config.calibration[d.id] || {};
-      const warm = h('input', { type: 'number', min: '1500', max: '7000', step: '100', placeholder: 'f.eks. 2200', 'aria-label': 'Varmeste (K)' });
-      const cool = h('input', { type: 'number', min: '1500', max: '10000', step: '100', placeholder: 'f.eks. 4000', 'aria-label': 'Kaldeste (K)' });
+      const warm = h('input', { type: 'number', min: '1500', max: '7000', step: '100', placeholder: tr('settings.eg2200'), 'aria-label': tr('settings.warmestK') });
+      const cool = h('input', { type: 'number', min: '1500', max: '10000', step: '100', placeholder: tr('settings.eg4000'), 'aria-label': tr('settings.coolestK') });
       warm.value = cal.warmK || '';
       cool.value = cal.coolK || '';
       const msg = h('p', { class: 'hint' });
@@ -1413,12 +1440,12 @@
         const w = Number(warm.value), c = Number(cool.value);
         if (!warm.value && !cool.value) {
           delete config.calibration[d.id];
-          msg.textContent = 'Ikke justert: lampen får planens verdi som den er.';
+          msg.textContent = tr('settings.calNone');
         } else if (w > 0 && c > w) {
           config.calibration[d.id] = { warmK: w, coolK: c };
-          msg.textContent = 'Lampen får nå samme farge som planen, så langt området rekker.';
+          msg.textContent = tr('settings.calSet');
         } else {
-          msg.textContent = 'Kaldeste må være høyere enn varmeste.';
+          msg.textContent = tr('settings.calInvalid');
           return;
         }
         updateSaveBar();
@@ -1429,20 +1456,20 @@
         type: 'button',
         text: w + '–' + c + ' K' + (brand ? ' (' + brand + ')' : ''),
         onclick: () => { warm.value = w; cool.value = c; apply(); },
-      })).concat([h('button', { type: 'button', text: 'Nullstill', onclick: () => { warm.value = ''; cool.value = ''; apply(); } })]));
+      })).concat([h('button', { type: 'button', text: tr('settings.reset'), onclick: () => { warm.value = ''; cool.value = ''; apply(); } })]));
       return h('div', { class: 'kf-panel', style: 'width:100%' }, [
-        h('div', { class: 'row' }, [h('label', { text: 'Varmeste (K)' }), warm]),
-        h('div', { class: 'row' }, [h('label', { text: 'Kaldeste (K)' }), cool]),
+        h('div', { class: 'row' }, [h('label', { text: tr('settings.warmestK') }), warm]),
+        h('div', { class: 'row' }, [h('label', { text: tr('settings.coolestK') }), cool]),
         presets,
-        h('p', { class: 'hint', text: 'Fargeområdet står i lampens manual eller på produktsiden. Gjelder lampen i alle rom.' }),
+        h('p', { class: 'hint', text: tr('settings.calHint') }),
         msg,
-        h('div', { class: 'row' }, [h('span'), h('button', { type: 'button', class: 'link', text: 'Ferdig', onclick: onDone })]),
+        h('div', { class: 'row' }, [h('span'), h('button', { type: 'button', class: 'link', text: tr('settings.done'), onclick: onDone })]),
       ]);
     }
 
     function buildCommonControls(group) {
       const wrap = h('div', { class: 'stack' });
-      wrap.append(labeledRow('Ikke rør lys som er slått av', switchButton(group.skipOffLights !== false, 'Ikke rør lys som er slått av', (on) => {
+      wrap.append(labeledRow(tr('settings.skipOff'), switchButton(group.skipOffLights !== false, tr('settings.skipOff'), (on) => {
         group.skipOffLights = on;
         updateSaveBar();
       })));
@@ -1457,18 +1484,18 @@
         group.fadeSeconds = v;
         updateSaveBar();
       });
-      wrap.append(labeledRow('Myk overgang (sekunder, 0–5)', fade));
-      wrap.append(h('p', { class: 'hint', text: 'Lysene glir over til nye verdier i stedet for å hoppe. Ikke alle lys støtter det. Når et lys slås på, får det riktige verdier med en gang.' }));
+      wrap.append(labeledRow(tr('settings.fade'), fade));
+      wrap.append(h('p', { class: 'hint', text: tr('settings.fadeHint') }));
       return wrap;
     }
 
     function renderDeviceList(container, group) {
       if (devices.length === 0) {
-        container.append(h('p', { class: 'hint', text: 'Fant ingen lys som kan styres (verken fargetemperatur eller lysstyrke).' }));
+        container.append(h('p', { class: 'hint', text: tr('settings.noControllable') }));
         return;
       }
       if (devices.some((d) => !d.hasTemp) && group.mode !== 'keyframes' && !group.adjustBrightness) {
-        container.append(h('p', { class: 'hint', style: 'color: var(--warn)', text: 'Lys uten fargetemperatur får ingen justering med «Følg sola» før du skrur på «Juster også lysstyrke».' }));
+        container.append(h('p', { class: 'hint', style: 'color: var(--warn)', text: tr('settings.dimOnlyWarning') }));
       }
       devices.forEach((d) => {
         const cb = h('input', { type: 'checkbox', id: 'dev-' + d.id });
@@ -1484,7 +1511,7 @@
         const row = h('div', { class: 'device' }, [
           cb,
           h('label', { for: 'dev-' + d.id, text: d.name + (d.zone ? ' (' + d.zone + ')' : '') }),
-          !d.hasTemp ? h('span', { class: 'tag', text: 'kun lysstyrke' }) : null,
+          !d.hasTemp ? h('span', { class: 'tag', text: tr('settings.dimOnly') }) : null,
         ]);
         if (d.hasTemp) {
           const cal = config.calibration && config.calibration[d.id];
@@ -1492,8 +1519,8 @@
             type: 'button',
             class: 'link',
             style: 'font-size: 13px',
-            text: cal ? cal.warmK + '–' + cal.coolK + ' K' : 'Fargeområde',
-            title: 'Juster for lampens fargeområde, så den viser samme farge som andre lamper',
+            text: cal ? cal.warmK + '–' + cal.coolK + ' K' : tr('settings.colourRange'),
+            title: tr('settings.colourRangeTitle'),
             onclick: () => {
               const open = row.querySelector('.kf-panel');
               if (open) { open.remove(); return; }
@@ -1504,15 +1531,15 @@
         const l = lightStatus(d.id);
         const lock = l ? l.lock : (d.locked ? d.lockType || 'manual' : null);
         if (lock) {
-          row.append(h('span', { class: 'tag locked', text: lock === 'untilOff' ? '⏸ pause til av' : '🔒 låst' }));
+          row.append(h('span', { class: 'tag locked', text: lock === 'untilOff' ? tr('settings.pausedTag') : tr('settings.lockedTag') }));
           row.append(h('button', {
             type: 'button',
             class: 'link',
-            text: 'Lås opp',
+            text: tr('settings.unlock'),
             onclick: () => HomeyRef.api('POST', '/resume', { deviceId: d.id }).then(() => {
               d.locked = false;
               return loadStatus();
-            }).then(render).catch((err) => updateSaveBar('Kunne ikke låse opp: ' + err.message, 'dirty')),
+            }).then(render).catch((err) => updateSaveBar(tr('settings.resumeFailed') + err.message, 'dirty')),
           }));
         }
         container.append(row);
@@ -1520,8 +1547,8 @@
     }
 
     function buildSimulateRow(group) {
-      const btn = h('button', { type: 'button', text: '▶ Simuler døgnet (~1 min)', title: 'Kjører gjennom hele døgnet på ca. 1 minutt på lysene i rommet, så du ser effekten med det samme.' });
-      const stopBtn = h('button', { type: 'button', text: '■ Stopp', disabled: true });
+      const btn = h('button', { type: 'button', text: tr('settings.simulate'), title: tr('settings.simulateTitle') });
+      const stopBtn = h('button', { type: 'button', text: tr('settings.simulateStop'), disabled: true });
       const msg = h('span', { class: 'hint' });
       let pollTimer = null;
 
@@ -1532,21 +1559,21 @@
             clearInterval(pollTimer);
             pollTimer = null;
             setRunning(false);
-            msg.textContent = st && st.stoppedReason ? st.stoppedReason + ' ✓' : 'Ferdig ✓ (tilbake til vanlig plan)';
+            msg.textContent = st && st.stoppedReason ? st.stoppedReason + ' ✓' : tr('settings.simulateDone');
             setTimeout(() => { msg.textContent = ''; }, 5000);
             return;
           }
           const p = st.totalSteps ? Math.round((st.stepIndex / st.totalSteps) * 100) : 0;
-          msg.textContent = 'Simulerer kl. ' + (st.simTime || '--:--') + ' (' + p + ' %)';
+          msg.textContent = tr('settings.simulating') + (st.simTime || '--:--') + ' (' + p + ' %)';
         }).catch(() => { /* the next poll retries */ });
       }
       btn.addEventListener('click', () => {
         if (!group.deviceIds || group.deviceIds.length === 0) {
-          msg.textContent = 'Velg minst ett lys i rommet først.';
+          msg.textContent = tr('settings.chooseLightFirst');
           return;
         }
         setRunning(true);
-        msg.textContent = 'Lagrer og starter...';
+        msg.textContent = tr('settings.savingAndStarting');
         // Save first, so the simulation uses exactly what is shown here
         HomeyRef.api('POST', '/config', config).then(() => {
           savedJson = JSON.stringify(config);
@@ -1557,12 +1584,12 @@
           pollTimer = setInterval(poll, 1000);
         }).catch((err) => {
           setRunning(false);
-          msg.textContent = 'Kunne ikke starte: ' + (err && err.message ? err.message : err);
+          msg.textContent = tr('settings.startFailed') + (err && err.message ? err.message : err);
         });
       });
       stopBtn.addEventListener('click', () => {
         stopBtn.disabled = true;
-        msg.textContent = 'Stopper...';
+        msg.textContent = tr('settings.stopping');
         HomeyRef.api('POST', '/simulate-stop').catch(() => {});
       });
       return h('div', { class: 'simulate-row' }, [btn, stopBtn, msg]);
@@ -1587,9 +1614,12 @@
     function onHomeyReady(Homey) {
       HomeyRef = Homey;
       Homey.ready();
+      document.getElementById('applyNow').textContent = tr('settings.applyNow');
+      document.getElementById('save').textContent = tr('settings.save');
+      document.documentElement.lang = tr('settings.locale');
 
       if (!C) {
-        document.getElementById('app').textContent = 'Kunne ikke laste circadian.js. Prøv å installere appen på nytt.';
+        document.getElementById('app').textContent = tr('settings.loadMathFailed');
         return;
       }
 
@@ -1606,7 +1636,7 @@
         status = st;
         render();
       }).catch((err) => {
-        document.getElementById('app').textContent = 'Kunne ikke laste: ' + (err && err.message ? err.message : JSON.stringify(err));
+        document.getElementById('app').textContent = tr('settings.loadFailed') + (err && err.message ? err.message : JSON.stringify(err));
       });
 
       // Any edit on the page may have changed the config
@@ -1615,12 +1645,12 @@
 
       document.getElementById('save').addEventListener('click', save);
       document.getElementById('applyNow').addEventListener('click', () => {
-        updateSaveBar('Oppdaterer lysene...');
+        updateSaveBar(tr('settings.applying'));
         HomeyRef.api('POST', '/apply').then(() => {
-          updateSaveBar('Oppdatert ✓', 'ok');
+          updateSaveBar(tr('settings.applied'), 'ok');
           setTimeout(() => updateSaveBar(), 2000);
           return loadStatus();
-        }).catch((err) => updateSaveBar('Kunne ikke oppdatere: ' + err.message, 'dirty'));
+        }).catch((err) => updateSaveBar(tr('settings.applyFailed') + err.message, 'dirty'));
       });
 
       // Keep the overview (and the hand on the clock) current while open

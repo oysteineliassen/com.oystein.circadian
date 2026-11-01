@@ -7,16 +7,43 @@
     "local"
   ],
   "name": {
-    "en": "Circadian Lighting",
-    "no": "Døgnrytmelys"
+    "en": "Daylight Rhythm"
   },
   "description": {
-    "en": "Automatically adjusts the color temperature of your lights through the day (sun-based or fixed schedule).",
-    "no": "Justerer automatisk fargetemperaturen på lysene dine gjennom dagen (basert på sol eller fast tidsplan)."
+    "en": "Circadian lighting for every room: warm and dim at night, cool and bright by day.",
+    "no": "Døgnrytmelys for hvert rom: varmt og dempet om kvelden, kaldt og klart på dagen."
+  },
+  "tags": {
+    "en": [
+      "circadian",
+      "circadian lighting",
+      "circadian rhythm",
+      "color temperature",
+      "colour temperature",
+      "light temperature",
+      "sunrise",
+      "sunset",
+      "wake-up light",
+      "daylight",
+      "adaptive lighting",
+      "human centric lighting"
+    ],
+    "no": [
+      "døgnrytme",
+      "døgnrytmelys",
+      "circadian",
+      "fargetemperatur",
+      "lystemperatur",
+      "soloppgang",
+      "solnedgang",
+      "vekkelys",
+      "dagslys"
+    ]
   },
   "category": [
     "lights"
   ],
+  "brandColor": "#F28C28",
   "permissions": [
     "homey:manager:api",
     "homey:manager:geolocation"
@@ -28,6 +55,10 @@
   },
   "author": {
     "name": "Øystein"
+  },
+  "source": "https://github.com/oysteineliassen/com.oystein.circadian",
+  "bugs": {
+    "url": "https://github.com/oysteineliassen/com.oystein.circadian/issues"
   },
   "api": {
     "getDevices": {
@@ -377,6 +408,5 @@
         ]
       }
     ]
-  },
-  "brandColor": "#F28C28"
+  }
 }
