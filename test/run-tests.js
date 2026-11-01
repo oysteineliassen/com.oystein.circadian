@@ -83,6 +83,7 @@ function makeHomey() {
     clock: { getTimezone: () => 'Europe/Oslo' },
     geolocation: { getLatitude: () => null, getLongitude: () => null },
     setTimeout: (fn, ms) => setTimeout(fn, Math.min(ms, 20)),
+    clearTimeout: (t) => clearTimeout(t),
     setInterval: () => 0,
     clearInterval: () => {},
   };
@@ -432,6 +433,74 @@ test('verdiene logges til Insights, og slettede rom ryddes bort', async () => {
   app.config.groups = [];
   await app._pruneInsights();
   assert.deepStrictEqual(homey.logs, {});
+});
+
+test('dagslys demper lysstyrken, og bare ved merkbar forskjell', async () => {
+  assert.strictEqual(lib.luxFactor(20, {}), 1);
+  assert.strictEqual(lib.luxFactor(5000, {}), 0.3);
+  assert.ok(Math.abs(lib.luxFactor(Math.sqrt(50 * 500), {}) - 0.65) < 0.001, 'midt på log-skalaen');
+
+  const light = makeDevice('a', { onoff: true, dim: 0.5, light_temperature: 0.5 });
+  const sensor = makeDevice('s', { measure_luminance: 5000 });
+  const kf = [{ time: '00:00', temp: 0.5, dim: 1 }];
+  const group = { id: 'g1', name: 'Stue', mode: 'keyframes', keyframes: kf, fadeSeconds: 0, deviceIds: ['a'], luxEnabled: true, luxSensorId: 's' };
+  const { app } = await startApp({ devices: [light, sensor], groups: [group] });
+  assert.strictEqual(light.writes.find((w) => w.cap === 'dim').value, 0.3, 'mye dagslys: 30 % av planen');
+  const st = await app.getStatus();
+  assert.strictEqual(st.groups[0].lux, 5000);
+  assert.deepStrictEqual((await app.getLightSensors()).map((x) => x.id), ['s']);
+
+  // Litt mindre lys: under 5 prosentpoeng forskjell, ingen ny skriving
+  light.report('dim', 0.3); // lampen melder tilbake det appen satte
+  light.writes.length = 0;
+  sensor.report('measure_luminance', 450);
+  app._luxReadings.s = [{ t: Date.now(), v: 450 }];
+  await app._tick();
+  assert.deepStrictEqual(light.writes.filter((w) => w.cap === 'dim'), [], `faktor ${lib.luxFactor(450, group)} er for nær`);
+  // Mørkt: full lysstyrke
+  app._luxReadings.s = [{ t: Date.now(), v: 20 }];
+  await app._tick();
+  assert.strictEqual(light.writes.find((w) => w.cap === 'dim').value, 1);
+});
+
+test('testfarge viser samme kelvin på alle lys og setter dem tilbake etterpå', async () => {
+  const hue = makeDevice('a', { onoff: true, dim: 0.4, light_temperature: 0.9 });
+  const ikea = makeDevice('b', { onoff: false, dim: 0.6, light_temperature: 0.2 });
+  const { app } = await startApp({ devices: [hue, ikea], groups: [{ id: 'g1', name: 'Stue', mode: 'keyframes', keyframes: KEYFRAMES, deviceIds: ['a', 'b'] }] });
+  app.config.calibration = { b: { warmK: 2200, coolK: 4000 } };
+  hue.writes.length = 0;
+  ikea.writes.length = 0;
+  const res = await app.showTestColor('g1', 3100);
+  const plan = (6500 - 3100) / 4300;
+  assert.ok(Math.abs(hue.writes.find((w) => w.cap === 'light_temperature').value - plan) < 0.001);
+  assert.ok(Math.abs(ikea.writes.find((w) => w.cap === 'light_temperature').value - (4000 - 3100) / 1800) < 0.001, 'IKEA-lampen får omregnet verdi');
+  assert.ok(ikea.writes.some((w) => w.cap === 'onoff' && w.value === true), 'lys som er av, slås på');
+  assert.deepStrictEqual(res.lights.map((l) => l.inRange), [true, true]);
+  // Ingen vanlig oppdatering eller lås mens testen vises
+  app._lastAppliedAt.a = 0;
+  hue.report('dim', 0.2);
+  assert.ok(!app.locks.a, 'testen skal ikke låse lyset');
+  await wait(100); // falsk Homey: 30 s blir 20 ms
+  assert.ok(ikea.writes.some((w) => w.cap === 'onoff' && w.value === false), 'lyset som var av, slås av igjen');
+  assert.ok(hue.writes.some((w) => w.cap === 'light_temperature' && w.value === 0.9), 'får tilbake fargen det hadde');
+  assert.strictEqual(app._testing, null);
+});
+
+test('Flow: start vekking nå, og triggere for startet og ferdig', async () => {
+  const d = makeDevice('a', { onoff: false, dim: 0.5, light_temperature: 0.5 });
+  const { app, homey } = await startApp({ devices: [d], groups: [{ id: 'g1', name: 'Soverom', mode: 'keyframes', keyframes: KEYFRAMES, deviceIds: ['a'] }] });
+  d.writes.length = 0;
+  await homey.cards['start-wake-up'].run({ group: { id: 'g1' }, minutes: 15 });
+  assert.ok(d.writes.some((w) => w.cap === 'onoff' && w.value === true));
+  assert.deepStrictEqual(homey.cards['wake-up-started'].triggered, [{ room: 'Soverom' }]);
+  assert.strictEqual(await homey.cards['wake-up-started'].run({ group: { id: 'g1' } }, { groupId: 'g1' }), true);
+  assert.strictEqual(await homey.cards['wake-up-started'].run({ group: { id: 'g2' } }, { groupId: 'g1' }), false);
+  // Ingen lys av: ferdig-triggeren kjører likevel ved vekketid
+  const on = makeDevice('b', { onoff: true, dim: 0.5, light_temperature: 0.5 });
+  const second = await startApp({ devices: [on], groups: [{ id: 'g2', name: 'Kjøkken', mode: 'keyframes', keyframes: KEYFRAMES, deviceIds: ['b'] }] });
+  await second.app.startWakeUpNow('g2', 1);
+  await wait(60);
+  assert.deepStrictEqual(second.homey.cards['wake-up-finished'].triggered, [{ room: 'Kjøkken' }]);
 });
 
 test('syntaks i innstillingssiden', () => {

@@ -31,4 +31,13 @@ module.exports = {
   async getStatus({ homey }) {
     return homey.app.getStatus();
   },
+  async getSensors({ homey }) {
+    return homey.app.getLightSensors();
+  },
+  async showTestColor({ homey, body }) {
+    return homey.app.showTestColor(body.groupId, body.kelvin);
+  },
+  async stopTestColor({ homey }) {
+    return homey.app.stopTestColor();
+  },
 };

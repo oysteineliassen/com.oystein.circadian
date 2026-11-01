@@ -188,6 +188,7 @@
 
     let HomeyRef = null;
     let devices = [];
+    let sensors = []; // devices with a light sensor (measure_luminance)
     let config = { enabled: true, groups: [] };
     let status = null;
     let savedJson = '';
@@ -249,6 +250,11 @@
         wakeUpTime: '06:30',
         wakeUpWeekendTime: '',
         wakeUpMinutes: 20,
+        luxEnabled: false,
+        luxSensorId: null,
+        luxDark: 50,
+        luxBright: 500,
+        luxMinFactor: 0.3,
       };
     }
 
@@ -437,6 +443,85 @@
             .catch((err) => updateSaveBar('Kunne ikke låse opp: ' + err.message, 'dirty')),
         }),
       ]));
+
+      root.append(buildBackup());
+    }
+
+    // --- backup: all settings as text, to keep somewhere safe and paste back ---
+
+    function buildBackup() {
+      const box = h('details', { class: 'section' }, [h('summary', { class: 'small muted', text: 'Sikkerhetskopi av innstillingene' })]);
+      const msg = h('p', { class: 'hint' });
+      const area = h('textarea', { rows: '6', style: 'width:100%; font: 12px ui-monospace, monospace; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px;', 'aria-label': 'Innstillinger som tekst' });
+
+      const copyBtn = h('button', { type: 'button', text: 'Kopier innstillingene' });
+      copyBtn.addEventListener('click', () => {
+        const text = JSON.stringify({ app: 'com.oystein.circadian', saved: new Date().toISOString(), config: JSON.parse(savedJson) });
+        area.value = text;
+        const done = () => { msg.textContent = 'Kopiert. Lim teksten inn et trygt sted, f.eks. i et notat eller en e-post til deg selv.'; };
+        const manual = () => {
+          area.focus();
+          area.select();
+          msg.textContent = 'Teksten er markert i feltet over. Kopier den derfra.';
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, manual);
+        else manual();
+      });
+
+      let armed = false;
+      const restoreBtn = h('button', { type: 'button', text: 'Gjenopprett fra teksten' });
+      restoreBtn.addEventListener('click', () => {
+        let parsed;
+        try {
+          parsed = JSON.parse(area.value);
+        } catch (err) {
+          msg.textContent = 'Lim inn teksten fra en sikkerhetskopi i feltet over først.';
+          return;
+        }
+        const cfg = parsed && parsed.config ? parsed.config : parsed;
+        if (!cfg || !Array.isArray(cfg.groups)) {
+          msg.textContent = 'Teksten ser ikke ut som en sikkerhetskopi fra Døgnrytmelys.';
+          return;
+        }
+        if (!armed) {
+          armed = true;
+          restoreBtn.textContent = 'Trykk igjen for å erstatte alle innstillingene';
+          setTimeout(() => { armed = false; restoreBtn.textContent = 'Gjenopprett fra teksten'; }, 5000);
+          return;
+        }
+        config = normalizeConfig(cfg);
+        save().then(render);
+      });
+
+      box.append(h('p', { class: 'hint', text: 'Innstillingene overlever oppdateringer, men ikke at appen avinstalleres eller Homey tilbakestilles. Kopier dem og ta vare på teksten. Lys som er paret på nytt etterpå, må velges på nytt i rommene.' }));
+      box.append(h('div', { class: 'simulate-row' }, [copyBtn, restoreBtn]));
+      box.append(area);
+      box.append(msg);
+      return box;
+    }
+
+    // Fill in what a room's page would otherwise add on first visit, so just
+    // looking at a room never counts as an unsaved change
+    function normalizeConfig(cfg) {
+      const c = Object.assign({ enabled: true, groups: [] }, cfg || {});
+      if (!Array.isArray(c.groups)) c.groups = [];
+      if (!c.calibration || typeof c.calibration !== 'object') c.calibration = {};
+      c.groups.forEach((g) => {
+        if (!Array.isArray(g.deviceIds)) g.deviceIds = [];
+        if (!Array.isArray(g.keyframes)) g.keyframes = [];
+        if (!Array.isArray(g.weekendKeyframes)) g.weekendKeyframes = [];
+      });
+      return c;
+    }
+
+    function groupStatus(group) {
+      return status && (status.groups || []).find((g) => g.id === group.id);
+    }
+
+    function daylightText(group) {
+      const g = groupStatus(group);
+      if (!group.luxEnabled || !g || g.lux == null) return '';
+      return ' · dagslys ' + g.lux + ' lux';
     }
 
     function roomCard(group, now) {
@@ -476,7 +561,7 @@
         ]),
         h('div', { class: 'room-now' }, [
           h('span', { class: 'big num', text: 'Varme ' + pct(v.temp) + (v.dim != null ? ' · lys ' + pct(v.dim) : '') }),
-          h('span', { class: 'small muted', text: enabled ? tempWords(v.temp) + ' nå' : 'skrudd av' }),
+          h('span', { class: 'small muted', text: enabled ? tempWords(v.temp) + ' nå' + daylightText(group) : 'skrudd av' }),
         ]),
         strip,
         h('div', { class: 'strip-labels' }, ['00', '06', '12', '18', '24'].map((t) => h('span', { text: t }))),
@@ -612,11 +697,16 @@
       const list = h('div', { class: 'devices-list' });
       renderDeviceList(list, group);
       lightsBox.append(list);
+      lightsBox.append(buildTestColor(group));
       root.append(lightsBox);
 
       const wake = h('div', { class: 'section' }, [h('h3', { text: 'Vekking' })]);
       wake.append(buildWakeUpControls(group));
       root.append(wake);
+
+      const daylight = h('div', { class: 'section' }, [h('h3', { text: 'Dagslys' })]);
+      daylight.append(buildDaylightControls(group));
+      root.append(daylight);
 
       const more = h('div', { class: 'section' }, [h('h3', { text: 'Mer' })]);
       more.append(buildCommonControls(group));
@@ -979,6 +1069,91 @@
       return wrap;
     }
 
+    function buildTestColor(group) {
+      const k = h('input', { type: 'number', min: '2000', max: '6500', step: '100', 'aria-label': 'Kelvin' });
+      k.value = 3000;
+      const msg = h('p', { class: 'hint' });
+      const stopBtn = h('button', { type: 'button', text: 'Stopp', hidden: true });
+      const btn = h('button', { type: 'button', text: 'Vis testfarge (30 s)' });
+      let timer = null;
+      const ended = () => {
+        clearTimeout(timer);
+        stopBtn.hidden = true;
+        btn.disabled = false;
+      };
+      btn.addEventListener('click', () => {
+        if (!group.deviceIds.length) { msg.textContent = 'Velg minst ett lys i rommet først.'; return; }
+        btn.disabled = true;
+        msg.textContent = 'Lagrer og viser...';
+        // Save first, so the test uses the colour ranges just entered
+        HomeyRef.api('POST', '/config', config).then(() => {
+          savedJson = JSON.stringify(config);
+          updateSaveBar();
+          return HomeyRef.api('POST', '/test-color', { groupId: group.id, kelvin: Number(k.value) });
+        }).then((res) => {
+          const outside = (res.lights || []).filter((l) => !l.inRange).map((l) => l.name);
+          const plain = (res.lights || []).filter((l) => !l.calibrated).map((l) => l.name);
+          msg.textContent = 'Alle lysene viser nå ' + res.kelvin + ' K i ' + res.seconds + ' sekunder. Ser en lampe annerledes ut enn de andre, juster fargeområdet dens.'
+            + (outside.length ? ' Utenfor området til: ' + outside.join(', ') + ' (de viser det nærmeste de klarer).' : '')
+            + (plain.length ? ' Uten fargeområde: ' + plain.join(', ') + '.' : '');
+          stopBtn.hidden = false;
+          timer = setTimeout(() => { ended(); msg.textContent = 'Ferdig. Lysene har fått tilbake det de hadde.'; }, res.seconds * 1000);
+        }).catch((err) => {
+          ended();
+          msg.textContent = 'Kunne ikke vise testfarge: ' + (err && err.message ? err.message : err);
+        });
+      });
+      stopBtn.addEventListener('click', () => {
+        HomeyRef.api('POST', '/test-color-stop').then(() => { ended(); msg.textContent = 'Stoppet. Lysene har fått tilbake det de hadde.'; }).catch(() => {});
+      });
+      return h('div', { class: 'stack', style: 'gap:6px; border-top: 1px solid var(--border-soft); padding-top: 10px' }, [
+        h('div', { class: 'simulate-row' }, [k, h('span', { class: 'small muted', text: 'K' }), btn, stopBtn]),
+        h('p', { class: 'hint', text: 'Viser samme farge på alle lysene i rommet, så du kan sammenligne dem og justere fargeområdet. Lysene som er av, slås på under testen.' }),
+        msg,
+      ]);
+    }
+
+    function buildDaylightControls(group) {
+      const wrap = h('div', { class: 'stack' });
+      wrap.append(labeledRow('Demp lysene når det er dagslys', switchButton(!!group.luxEnabled, 'Demp lysene når det er dagslys', (on) => {
+        group.luxEnabled = on;
+        renderSoon();
+      })));
+      if (!group.luxEnabled) {
+        wrap.append(h('p', { class: 'hint', text: sensors.length
+          ? 'Bruker en lyssensor i rommet til å skru ned lysstyrken når sola skinner inn, og opp igjen når det er grått og mørkt.'
+          : 'Krever en lyssensor (lux). Mange bevegelsessensorer måler også lys. Fant ingen i Homey.' }));
+        return wrap;
+      }
+
+      const select = h('select', { 'aria-label': 'Lyssensor', style: 'max-width: 60%; font: inherit; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px;' });
+      select.append(h('option', { value: '', text: 'Velg sensor' }));
+      sensors.forEach((sn) => {
+        const o = h('option', { value: sn.id, text: sn.name + (sn.lux != null ? ' (' + Math.round(sn.lux) + ' lux)' : '') });
+        if (sn.id === group.luxSensorId) o.selected = true;
+        select.append(o);
+      });
+      select.addEventListener('change', () => { group.luxSensorId = select.value || null; updateSaveBar(); });
+      wrap.append(labeledRow('Lyssensor', select));
+
+      const num = (value, min, max, onChange) => {
+        const i = h('input', { type: 'number', min: String(min), max: String(max), step: '10' });
+        i.value = value;
+        i.addEventListener('change', () => { onChange(clamp(Number(i.value) || min, min, max)); updateSaveBar(); });
+        return i;
+      };
+      wrap.append(labeledRow('Full lysstyrke når mørkere enn (lux)', num(group.luxDark || 50, 1, 5000, (v) => { group.luxDark = v; })));
+      wrap.append(labeledRow('Mest dempet når lysere enn (lux)', num(group.luxBright || 500, 10, 100000, (v) => { group.luxBright = v; })));
+      wrap.append(percentRow('Laveste lysstyrke ved mye dagslys, av planens', group.luxMinFactor != null ? group.luxMinFactor : 0.3, '', (v) => { group.luxMinFactor = v; updateSaveBar(); }));
+
+      const g = groupStatus(group);
+      if (g && g.lux != null) {
+        wrap.append(h('p', { class: 'hint', text: 'Nå: ' + g.lux + ' lux (snitt siste 10 min), så lysene får ' + pct(g.luxFactor) + ' av planens lysstyrke.' }));
+      }
+      wrap.append(h('p', { class: 'hint', text: 'Lysstyrken endres bare i de vanlige oppdateringene hvert 2. minutt og bare når forskjellen er over 5 %, så lysene ikke blafrer når en sky passerer.' }));
+      return wrap;
+    }
+
     function buildWakeUpControls(group) {
       const wrap = h('div', { class: 'stack' });
       wrap.append(labeledRow('Soloppgangsvekking', switchButton(!!group.wakeUpEnabled, 'Soloppgangsvekking', (on) => {
@@ -1206,18 +1381,11 @@
         Homey.api('GET', '/devices'),
         Homey.api('GET', '/config'),
         Homey.api('GET', '/status').catch(() => null),
-      ]).then(([deviceList, cfg, st]) => {
+        Homey.api('GET', '/sensors').catch(() => []),
+      ]).then(([deviceList, cfg, st, sensorList]) => {
         devices = deviceList || [];
-        config = Object.assign({ enabled: true, groups: [] }, cfg || {});
-        if (!Array.isArray(config.groups)) config.groups = [];
-        // Fill in what a room's page would otherwise add on first visit,
-        // so just looking at a room never counts as an unsaved change
-        if (!config.calibration || typeof config.calibration !== 'object') config.calibration = {};
-        config.groups.forEach((g) => {
-          if (!Array.isArray(g.deviceIds)) g.deviceIds = [];
-          if (!Array.isArray(g.keyframes)) g.keyframes = [];
-          if (!Array.isArray(g.weekendKeyframes)) g.weekendKeyframes = [];
-        });
+        sensors = sensorList || [];
+        config = normalizeConfig(cfg);
         savedJson = JSON.stringify(config);
         status = st;
         render();

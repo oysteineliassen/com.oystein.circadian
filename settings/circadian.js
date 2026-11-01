@@ -163,6 +163,23 @@ function fromDeviceTemp(v, cal) {
 }
 
 /**
+ * How much of the plan's brightness to use for the daylight a light sensor
+ * measures: all of it when darker than luxDark, luxMinFactor of it when
+ * brighter than luxBright, and in between along a logarithmic scale, since
+ * the eye sees light that way (50 -> 500 lux feels like 500 -> 5000).
+ */
+function luxFactor(lux, group) {
+  if (lux == null) return 1;
+  const dark = Math.max(1, Number(group.luxDark) || 50);
+  const bright = Math.max(dark + 1, Number(group.luxBright) || 500);
+  const min = clamp(group.luxMinFactor != null ? Number(group.luxMinFactor) : 0.3, 0, 1);
+  if (lux <= dark) return 1;
+  if (lux >= bright) return min;
+  const p = (Math.log(lux) - Math.log(dark)) / (Math.log(bright) - Math.log(dark));
+  return 1 + (min - 1) * p;
+}
+
+/**
  * The { temp, dim } a group's schedule calls for (dim is null when the group
  * doesn't control brightness). sun: { sunriseMinutes, sunsetMinutes }, either
  * may be null. weekend: whether the weekend plan applies (see isWeekendAt);
@@ -305,6 +322,7 @@ const api = {
   REF_WARM_K,
   calculateCircadianValue,
   fromDeviceTemp,
+  luxFactor,
   planToKelvin,
   toDeviceTemp,
   easterSunday,

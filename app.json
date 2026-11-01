@@ -69,6 +69,18 @@
     "getStatus": {
       "method": "GET",
       "path": "/status"
+    },
+    "getSensors": {
+      "method": "GET",
+      "path": "/sensors"
+    },
+    "showTestColor": {
+      "method": "POST",
+      "path": "/test-color"
+    },
+    "stopTestColor": {
+      "method": "POST",
+      "path": "/test-color-stop"
     }
   },
   "flow": {
@@ -94,6 +106,80 @@
             "example": {
               "en": "Living room lamp",
               "no": "Stuelampe"
+            }
+          }
+        ]
+      },
+      {
+        "id": "wake-up-started",
+        "title": {
+          "en": "Sunrise wake-up started",
+          "no": "Soloppgangsvekking startet"
+        },
+        "titleFormatted": {
+          "en": "Sunrise wake-up started in [[group]]",
+          "no": "Soloppgangsvekking startet i [[group]]"
+        },
+        "args": [
+          {
+            "name": "group",
+            "type": "autocomplete",
+            "placeholder": {
+              "en": "Choose a room",
+              "no": "Velg et rom"
+            }
+          }
+        ],
+        "tokens": [
+          {
+            "name": "room",
+            "type": "string",
+            "title": {
+              "en": "Room",
+              "no": "Rom"
+            },
+            "example": {
+              "en": "Bedroom",
+              "no": "Soverom"
+            }
+          }
+        ]
+      },
+      {
+        "id": "wake-up-finished",
+        "title": {
+          "en": "Sunrise wake-up finished",
+          "no": "Soloppgangsvekking ferdig"
+        },
+        "titleFormatted": {
+          "en": "Sunrise wake-up finished in [[group]]",
+          "no": "Soloppgangsvekking ferdig i [[group]]"
+        },
+        "hint": {
+          "en": "Runs at the wake time, when the lights have reached the plan's values.",
+          "no": "Kjører ved vekketid, når lysene har nådd planens verdier."
+        },
+        "args": [
+          {
+            "name": "group",
+            "type": "autocomplete",
+            "placeholder": {
+              "en": "Choose a room",
+              "no": "Velg et rom"
+            }
+          }
+        ],
+        "tokens": [
+          {
+            "name": "room",
+            "type": "string",
+            "title": {
+              "en": "Room",
+              "no": "Rom"
+            },
+            "example": {
+              "en": "Bedroom",
+              "no": "Soverom"
             }
           }
         ]
@@ -246,6 +332,42 @@
             "placeholder": {
               "en": "Choose a group",
               "no": "Velg en gruppe"
+            }
+          }
+        ]
+      },
+      {
+        "id": "start-wake-up",
+        "title": {
+          "en": "Start sunrise wake-up now",
+          "no": "Start soloppgangsvekking nå"
+        },
+        "titleFormatted": {
+          "en": "Start sunrise wake-up in [[group]] over [[minutes]] minutes",
+          "no": "Start soloppgangsvekking i [[group]] over [[minutes]] minutter"
+        },
+        "hint": {
+          "en": "Lights in the room that are off come on very dim and warm and brighten to the plan's values. Works also when the room's scheduled wake-up is off.",
+          "no": "Lys i rommet som er av, slås på helt svakt og varmt og glir opp til planens verdier. Virker også når rommets faste vekking er av."
+        },
+        "args": [
+          {
+            "name": "group",
+            "type": "autocomplete",
+            "placeholder": {
+              "en": "Choose a room",
+              "no": "Velg et rom"
+            }
+          },
+          {
+            "name": "minutes",
+            "type": "number",
+            "min": 1,
+            "max": 60,
+            "step": 1,
+            "placeholder": {
+              "en": "Minutes",
+              "no": "Minutter"
             }
           }
         ]

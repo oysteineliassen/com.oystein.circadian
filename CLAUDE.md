@@ -75,6 +75,17 @@ skriv til ham på norsk. Han utvikler på Windows og har en Homey Pro (Early 202
 - **Vekking** (`_checkWakeUps` i tick, `_startWakeUp`): bare lys som er av ved
   start; `_waking[id]` gjør at tick, påslag og låsdeteksjon lar dem være.
   Fremdrift regnes fra starttidspunktet, ikke ved å lese klokka på nytt.
+- **Dagslys** (`luxEnabled`, `luxSensorId`): `_syncLuxListeners` lytter på
+  `measure_luminance`, `_luxNow` gir snitt over 10 min, `luxFactor()` (felles
+  fil) gir andelen av planens lysstyrke. `_groupTarget()` er det lysene
+  faktisk skal få (plan + dagslys) og brukes av tick, påslag og «slå på
+  gruppe»; tokens/Insights viser planen uten dagslys. `dimTolerance` hindrer
+  blafring.
+- **Testfarge** (`showTestColor`): lagrer forrige tilstand per lys i
+  `_testing.before` og skriver den tilbake etter 30 s; tick, påslag og
+  låsdeteksjon hopper over lys som testes (`_isTesting`).
+- Den falske Homey-en i testene må ha alt appen bruker (`setTimeout`,
+  `clearTimeout`, `insights` …): mangler noe, feiler appen bare i testen.
 - **Insights**: logg-ID `${groupId}-temp` / `-dim`; ryddes i `_pruneInsights`
   ved lagring.
 - Låser: `true` = manuell (til opplåsing), `'untilOff'` = pause til lyset

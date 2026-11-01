@@ -46,6 +46,15 @@ solnedgang, eller egne sjekkpunkter på en 24-timers klokke.
 - **Mørk modus** på innstillingssiden, etter innstillingen på telefonen eller PC-en.
 - **Tokens** for hver gruppe: «[gruppe]: varme (%)» og «[gruppe]: lysstyrke (%)»
   (0 = kaldest, 100 = varmest), til bruk i andre flows.
+- **Testfarge**: «Vis testfarge» under «Lys i rommet» setter alle lampene i
+  rommet til samme kelvin i 30 sekunder, så du kan sammenligne dem og
+  justere fargeområdet. Etterpå får lampene tilbake det de hadde.
+- **Dagslys** (per rom): med en lyssensor (lux) i rommet skrus lysstyrken
+  ned når det er lyst ute, og opp igjen når det er mørkt og grått. Bruker
+  snittet de siste 10 minuttene og endrer bare når forskjellen er over 5 %.
+- **Sikkerhetskopi**: nederst på forsiden kan du kopiere alle innstillingene
+  som tekst og gjenopprette dem senere, f.eks. etter at appen er installert
+  på nytt.
 - **Insights**: varme og lysstyrke for hvert rom logges hvert 2. minutt, så
   du kan se grafer over dem i Homey under Insights.
 
@@ -54,6 +63,8 @@ solnedgang, eller egne sjekkpunkter på en 24-timers klokke.
 | Når … | Hva den gjør |
 |---|---|
 | Et lys ble låst etter manuell justering | Kjører når du endrer lysstyrke eller farge selv. Token: lysets navn |
+| Soloppgangsvekking startet i [rom] | Token: rommets navn |
+| Soloppgangsvekking ferdig i [rom] | Ved vekketid, når lysene har nådd planens verdier |
 
 | Og … | Hva den sjekker |
 |---|---|
@@ -62,6 +73,7 @@ solnedgang, eller egne sjekkpunkter på en 24-timers klokke.
 | Så … | Hva den gjør |
 |---|---|
 | Skru døgnrytme av/på for [gruppe] | Mens den er av, lar appen lysene i gruppen være i fred |
+| Start soloppgangsvekking i [rom] over [minutter] minutter | F.eks. fra vekkerklokka på telefonen. Virker også når rommets faste vekking er av |
 | Aktiver døgnrytmestyring (alle lys) | Låser opp alle lys |
 | Aktiver døgnrytmestyring for ett lys | Låser opp ett lys |
 | Slå på [gruppe] og start døgnrytme | Slår på alle lys i gruppen med verdiene døgnrytmen har nå, og låser dem opp |
