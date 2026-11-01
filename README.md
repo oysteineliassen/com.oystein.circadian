@@ -81,7 +81,10 @@ solnedgang, eller egne sjekkpunkter på en 24-timers klokke.
 | Slå på [gruppe] og start døgnrytme | Slår på alle lys i gruppen med verdiene døgnrytmen har nå, og låser dem opp |
 | Sett døgnrytme på pause for [lys/gruppe] til det slås av | Appen rører ikke lyset før det slås av, f.eks. for nattlys styrt av bevegelse |
 
-## Oppdatere på Homey
+## Oppdatere på Homey fra PC (gammel måte)
+
+Appen oppdateres nå fra Homey App Store, se «Oppdatere uten PC» under.
+Det som står her, gjelder bare hvis du går tilbake til å installere fra PC-en.
 
 Kjør i PowerShell:
 

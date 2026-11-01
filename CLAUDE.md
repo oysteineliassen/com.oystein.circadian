@@ -5,8 +5,11 @@ skriv til ham på norsk. Han utvikler på Windows og har en Homey Pro (Early 202
 
 ## Arbeidsflyt
 
-- Endringer pushes til `main` på GitHub. Øystein kjører `oppdater.ps1` på PC-en,
-  som gjør `git pull` + `npm install` + `homey app install`.
+- Endringer pushes til `main` på GitHub. Appen er installert fra Homey App
+  Store (testkanalen): `publish.yml` laster opp hver endring som utkast, og
+  Øystein slipper den til Test i utviklerportalen og oppdaterer i Homey-appen.
+  Si fra til ham når en ny versjon er lastet opp. `oppdater.ps1` (PC) skal
+  ikke brukes lenger, den installerer PC-versjonen over App Store-versjonen.
 - Du kan ikke teste mot ekte Homey. Kjør `node test/run-tests.js` (falske
   `homey`, `homey-api`, `suncalc`; sjekker også syntaks i innstillingssiden og
   at Flow-kort/API-ruter i `app.json` finnes i koden). Legg til tester for ny
