@@ -25,8 +25,13 @@ solnedgang, eller egne sjekkpunkter på en 24-timers klokke.
 - **Lås ved manuell justering**: dimmer eller endrer du farge selv, står
   lyset urørt til du låser det opp.
 - **Simulering**: kjører hele døgnet på ca. 1 minutt på de ekte lysene.
-- **Status** øverst på innstillingssiden: hvert lys, om det er på, om det er
-  låst, og hva appen sist gjorde med det.
+- **Innstillingssiden** åpner med en oversikt over rommene: lysfargen nå,
+  døgnet som en fargestripe, og hver lampe i fargen og styrken den har. Trykk
+  på en låst lampe for å låse den opp, eller skru døgnrytmen av for et rom.
+  «Endre plan» åpner rommets døgnklokke: ringen viser lysfargen, strekene
+  lysstyrken, og viseren står på nå (dra den for å se en annen tid). Med egne
+  punkter trykker du på ringen for å legge til et punkt, drar for å flytte,
+  og drar inn i midten for å slette.
 - **Mørk modus** på innstillingssiden, etter innstillingen på telefonen eller PC-en.
 - **Tokens** for hver gruppe: «[gruppe]: varme (%)» og «[gruppe]: lysstyrke (%)»
   (0 = kaldest, 100 = varmest), til bruk i andre flows.

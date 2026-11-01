@@ -22,6 +22,7 @@ jobs:
           node --check app.js
           node --check api.js
           node --check lib/circadian.js
+          node --check settings/circadian.js
       - name: Kjør tester
         run: node test/run-tests.js
       - name: Valider appen (som homey app install gjør)

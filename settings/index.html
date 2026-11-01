@@ -2,204 +2,204 @@
 <html>
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light dark" />
   <style>
-    /* Colours follow the phone's / computer's light or dark mode. Homey's
-       app may also mark dark mode with a class on <html>. */
+    /* Two views: an overview of every room (what the lights do right now),
+       and a room's page with a 24h clock that both shows and edits its plan.
+       Colours follow the phone's / computer's light or dark mode; Homey's app
+       may also mark dark mode with a class on <html>. Light colours drawn on
+       the clock come from the light's colour temperature, not from here. */
     :root {
       color-scheme: light dark;
-      --bg: #ffffff;
-      --text: #222222;
-      --muted: #666666;
-      --faint: #888888;
-      --border: #dddddd;
-      --border-soft: #eeeeee;
-      --card: #fafafa;
-      --panel: #ffffff;
-      --button: #ffffff;
-      --button-text: #333333;
-      --accent: #2c7be5;
-      --selected: #eef4ff;
-      --danger: #c0392b;
+      --bg: #f2f3f6;
+      --surface: #ffffff;
+      --text: #1d2230;
+      --muted: #5f6777;
+      --faint: #8a91a0;
+      --border: #dcdfe6;
+      --border-soft: #eceef2;
+      --track: #e5e8ee;
+      --accent: #2f62d0;
+      --danger: #c4372b;
       --warn: #b36b00;
       --ok: #2e8b57;
-      --clock-ring: #dddddd;
-      --clock-tick: #cccccc;
-      --clock-tick-major: #999999;
-      --clock-label: #666666;
-      --clock-text: #444444;
-      --marker-stroke: #333333;
-      --trash-bg: #fff5f5;
+      --sun: #f2b233;
+      --shadow: 0 1px 3px rgba(20, 30, 50, 0.08);
     }
     @media (prefers-color-scheme: dark) {
       :root {
-        --bg: #1b1d21;
-        --text: #e6e6e6;
-        --muted: #a0a4ab;
-        --faint: #8a8f97;
-        --border: #3a3e45;
-        --border-soft: #2c3036;
-        --card: #24272c;
-        --panel: #2b2f35;
-        --button: #2b2f35;
-        --button-text: #e6e6e6;
-        --accent: #4c8ff0;
-        --selected: #2a3a55;
-        --danger: #ff6b5e;
+        --bg: #12151c;
+        --surface: #1c2129;
+        --text: #e8eaf0;
+        --muted: #a0a7b5;
+        --faint: #7d8494;
+        --border: #313846;
+        --border-soft: #262c37;
+        --track: #2a303c;
+        --accent: #6f9bff;
+        --danger: #ff7a6b;
         --warn: #f0a640;
         --ok: #5fd08f;
-        --clock-ring: #3a3e45;
-        --clock-tick: #4a4f57;
-        --clock-tick-major: #8a8f97;
-        --clock-label: #a0a4ab;
-        --clock-text: #c8ccd2;
-        --marker-stroke: #e6e6e6;
-        --trash-bg: #3a2426;
+        --shadow: none;
       }
     }
     :root.homey-dark-mode {
-      --bg: #1b1d21;
-      --text: #e6e6e6;
-      --muted: #a0a4ab;
-      --faint: #8a8f97;
-      --border: #3a3e45;
-      --border-soft: #2c3036;
-      --card: #24272c;
-      --panel: #2b2f35;
-      --button: #2b2f35;
-      --button-text: #e6e6e6;
-      --accent: #4c8ff0;
-      --selected: #2a3a55;
-      --danger: #ff6b5e;
+      --bg: #12151c;
+      --surface: #1c2129;
+      --text: #e8eaf0;
+      --muted: #a0a7b5;
+      --faint: #7d8494;
+      --border: #313846;
+      --border-soft: #262c37;
+      --track: #2a303c;
+      --accent: #6f9bff;
+      --danger: #ff7a6b;
       --warn: #f0a640;
       --ok: #5fd08f;
-      --clock-ring: #3a3e45;
-      --clock-tick: #4a4f57;
-      --clock-tick-major: #8a8f97;
-      --clock-label: #a0a4ab;
-      --clock-text: #c8ccd2;
-      --marker-stroke: #e6e6e6;
-      --trash-bg: #3a2426;
+      --shadow: none;
     }
-    body { font-family: -apple-system, Arial, sans-serif; padding: 12px; background: var(--bg); color: var(--text); }
-    p.small, .small { color: var(--muted); font-size: 13px; }
-    button { background: var(--button); color: var(--button-text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; }
-    button:disabled { opacity: 0.5; }
-    input[type="text"], input[type="time"], input[type="number"] { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 4px; }
-    h2 { margin-top: 0; }
-    h3 { margin: 4px 0 12px; }
-    .row { display: flex; align-items: center; justify-content: space-between; margin: 8px 0; gap: 8px; }
-    .device { display: flex; align-items: center; flex-wrap: wrap; padding: 4px 0; border-bottom: 1px solid var(--border-soft); }
-    .device span { margin-left: 8px; }
-    label.small { color: var(--muted); font-size: 12px; }
-    input[type="time"], input[type="number"] { width: 90px; }
-    input[type="text"] { font-size: 15px; padding: 4px; }
-    input[type="range"] { width: 100%; }
-    input.temp-slider {
-      -webkit-appearance: none;
-      appearance: none;
-      height: 12px;
-      border-radius: 6px;
-      background: linear-gradient(to right, #8ecbff 0%, #d9c9ff 25%, #ffe3b3 55%, #ffb454 100%);
-      outline: none;
-    }
-    input.temp-slider::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      background: #fff;
-      border: 2px solid var(--marker-stroke);
-      cursor: pointer;
-      margin-top: -1px;
-    }
-    input.temp-slider::-moz-range-thumb {
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      background: #fff;
-      border: 2px solid var(--marker-stroke);
-      cursor: pointer;
-    }
-    input.temp-slider::-moz-range-track {
-      height: 12px;
-      border-radius: 6px;
-      background: linear-gradient(to right, #8ecbff 0%, #d9c9ff 25%, #ffe3b3 55%, #ffb454 100%);
-    }
-    .group-card { border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 16px; background: var(--card); }
-    .group-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-    .group-header input.group-name { flex: 1 1 auto; min-width: 0; width: 100%; font-weight: bold; font-size: 18px; border: none; border-radius: 0; background: transparent; color: var(--text); border-bottom: 1px solid var(--border); padding: 4px 0; }
-    .group-header input.group-name:focus { border-bottom: 1px solid var(--accent); outline: none; }
-    .group-header input[type="checkbox"], .group-header .delete-group { flex: 0 0 auto; }
-    .mode-toggle { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 12px; }
-    .mode-toggle button { flex: 1; border: none !important; border-radius: 0; background: var(--button) !important; color: var(--button-text) !important; padding: 8px 10px; cursor: pointer; font-size: 14px; }
-    .mode-toggle button.active { background: var(--accent) !important; color: #fff !important; }
-    .mode-toggle.small-toggle { margin: 4px 0 10px; }
-    .mode-toggle.small-toggle button { padding: 5px 8px; font-size: 13px; }
-    .delete-group { color: var(--danger); background: none; border: none; cursor: pointer; font-size: 18px; }
-    .devices-list { max-height: 160px; overflow-y: auto; border: 1px solid var(--border-soft); border-radius: 6px; padding: 6px; margin-bottom: 10px; }
-    #addGroup { margin: 10px 0 20px; padding: 8px 14px; }
-    #save, #applyNow { margin-top: 10px; padding: 10px 18px; }
-    #status { margin-left: 10px; color: var(--ok); }
-    .clock-wrap { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
-    svg.clock { touch-action: none; cursor: pointer; }
-    .clock-marker { cursor: grab; }
-    .clock-marker.selected { stroke: var(--marker-stroke); stroke-width: 2; }
-    .editor-panel { min-width: 220px; border: 1px solid var(--border); border-radius: 6px; padding: 10px; background: var(--panel); }
-    .editor-panel .row { margin: 6px 0; }
-    .kf-hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
-    .kf-list { font-size: 12px; margin-top: 10px; }
-    .kf-list-row { display: flex; justify-content: space-between; padding: 2px 0; }
-    .simulate-row { display: flex; align-items: center; gap: 10px; margin: 4px 0 14px; }
-    .simulate-row button { padding: 6px 12px; }
-    .simulate-status { font-size: 12px; color: var(--muted); }
-    .tag { font-size: 12px; margin-left: 6px; color: var(--faint); }
+
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 12px 12px 88px; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; font-size: 15px; line-height: 1.4; background: var(--bg); color: var(--text); }
+    h1, h2, h3 { margin: 0; }
+    h1 { font-size: 22px; }
+    h3 { font-size: 13px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+    .num { font-variant-numeric: tabular-nums; }
+    .muted { color: var(--muted); }
+    .small { font-size: 13px; }
+    .hint { font-size: 12.5px; color: var(--muted); margin: 0; }
+    button { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 7px 12px; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: default; }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+    button.link { border: 0; background: none; color: var(--accent); padding: 4px 0; }
+    button.danger { color: var(--danger); }
+    button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    input[type="text"], input[type="time"], input[type="number"] { font: inherit; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; }
+    input[type="time"], input[type="number"] { width: 96px; }
+    input[type="range"] { width: 100%; accent-color: var(--accent); }
+    input.temp-slider { -webkit-appearance: none; appearance: none; height: 12px; border-radius: 6px; outline: none; background: linear-gradient(to right, #c9e2ff 0%, #fff6ec 40%, #ffd6a0 70%, #ff9d3c 100%); }
+    input.temp-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #fff; border: 2px solid #333; cursor: pointer; }
+    input.temp-slider::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 2px solid #333; cursor: pointer; }
+
+    .stack { display: grid; gap: 12px; }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 34px; }
+    .row label { flex: 1; }
+    .section { background: var(--surface); border: 1px solid var(--border-soft); border-radius: 14px; padding: 14px; display: grid; gap: 10px; box-shadow: var(--shadow); }
+    .sub-row { padding-left: 16px; }
+
+    .switch { width: 46px; height: 28px; flex: none; border-radius: 14px; border: 0; padding: 0; background: var(--track); position: relative; }
+    .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: transform .15s; }
+    .switch[aria-checked="true"] { background: var(--accent); }
+    .switch[aria-checked="true"]::after { transform: translateX(18px); }
+
+    .seg { display: flex; background: var(--track); border-radius: 10px; padding: 3px; gap: 3px; }
+    .seg button { flex: 1; border: 0; background: transparent; color: var(--muted); padding: 7px 8px; border-radius: 8px; font-size: 14px; }
+    .seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+
+    .banner { border-radius: 10px; padding: 8px 12px; font-size: 13.5px; background: var(--surface); border: 1px solid var(--warn); color: var(--warn); }
+
+    /* Overview */
+    .top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+    .room { background: var(--surface); border: 1px solid var(--border-soft); border-radius: 16px; padding: 14px; display: grid; gap: 10px; box-shadow: var(--shadow); }
+    .room.off .room-now, .room.off .strip, .room.off .lamps { opacity: .5; }
+    .room-head { display: flex; align-items: center; gap: 10px; }
+    .glow { width: 24px; height: 24px; border-radius: 50%; flex: none; }
+    .room-head h2 { font-size: 18px; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+    .chip { font-size: 12px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px; white-space: nowrap; }
+    .room-now { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+    .room-now .big { font-size: 20px; font-weight: 700; }
+    .strip { position: relative; height: 12px; border-radius: 6px; }
+    .strip .now { position: absolute; top: -4px; bottom: -4px; width: 3px; border-radius: 2px; background: var(--text); }
+    .strip-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--faint); margin-top: -6px; }
+    .lamps { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+    .lamp { border: 1px solid var(--border-soft); background: transparent; border-radius: 12px; padding: 10px 6px; display: grid; justify-items: center; gap: 4px; text-align: center; cursor: default; }
+    button.lamp { cursor: pointer; }
+    .bulb { width: 36px; height: 36px; border-radius: 50%; }
+    .bulb.off { box-shadow: inset 0 0 0 2px var(--border); }
+    .lamp .n { font-size: 13px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
+    .lamp .s { font-size: 11.5px; color: var(--muted); }
+    .lamp.locked { border-color: var(--danger); }
+    .lamp.locked .s, .lamp.error .s { color: var(--danger); }
+    .room-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid var(--border-soft); padding-top: 10px; }
+    .room-foot .toggle { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+    .overview-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    /* Room page */
+    .back-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    input.group-name { width: 100%; font-size: 22px; font-weight: 700; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; padding: 4px 0; }
+    .dial-wrap { display: grid; justify-items: center; gap: 6px; }
+    svg.dial { width: 100%; max-width: 330px; height: auto; touch-action: none; user-select: none; -webkit-user-select: none; }
+    svg.dial text { font-family: inherit; }
+    .dial-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; max-width: 330px; }
+    .kf-panel { display: grid; gap: 8px; border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
+    .kf-list { display: grid; gap: 2px; font-size: 13px; }
+    .kf-row { display: flex; align-items: center; gap: 8px; border: 0; background: transparent; border-radius: 6px; padding: 5px 6px; text-align: left; width: 100%; }
+    .kf-row[aria-pressed="true"] { background: var(--track); font-weight: 600; }
+    .kf-row .sw { width: 12px; height: 12px; border-radius: 50%; flex: none; box-shadow: 0 0 0 1px rgba(0,0,0,.2); }
+    .devices-list { max-height: 220px; overflow-y: auto; display: grid; }
+    .device { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; padding: 6px 0; border-bottom: 1px solid var(--border-soft); }
+    .tag { font-size: 12px; color: var(--faint); }
     .tag.locked { color: var(--danger); }
-    .tag.warn { color: var(--warn); }
-    .sub-row { margin: 4px 0 8px 18px; }
-    .status-box { border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; background: var(--card); }
-    .status-box summary { cursor: pointer; font-weight: bold; }
-    .status-group { margin: 10px 0 4px; font-size: 14px; }
-    .status-group .now { color: var(--muted); font-weight: normal; }
-    .status-light { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding: 4px 0; border-bottom: 1px solid var(--border-soft); font-size: 13px; }
-    .status-light .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; background: var(--faint); }
-    .status-light .dot.on { background: #f5b942; }
-    .status-light .lname { font-weight: 600; }
-    .status-light .detail { color: var(--muted); }
-    .status-light .detail.error { color: var(--danger); }
+    .simulate-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+
+    /* Save bar */
+    .savebar { position: fixed; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface); border-top: 1px solid var(--border); }
+    .savebar .msg { flex: 1; font-size: 13px; color: var(--muted); }
+    .savebar .msg.dirty { color: var(--warn); }
+    .savebar .msg.ok { color: var(--ok); }
+
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
   </style>
 </head>
 <body>
 
-  <h2>Døgnrytmelys</h2>
-  <p class="small">Lag én eller flere grupper med lys. Hver gruppe kan enten følge soloppgang/solnedgang automatisk, eller styres manuelt med egne sjekkpunkter på en 24-timers klokke.</p>
+  <div id="app">Laster...</div>
 
-  <details class="status-box" id="statusBox" open>
-    <summary>Status nå</summary>
-    <div id="statusList" class="small">Laster...</div>
-    <button id="refreshStatus" style="margin-top: 8px;">Oppdater status</button>
-  </details>
-
-  <div id="groups"></div>
-  <button id="addGroup">+ Legg til gruppe</button>
-  <button id="resumeAll" style="margin-left: 8px;">🔓 Lås opp alle lys</button>
-
-  <h2>Aktiv</h2>
-  <div class="row">
-    <label>Skru på døgnrytmestyring (hele appen)</label>
-    <input type="checkbox" id="globalEnabled" />
+  <div class="savebar">
+    <span class="msg" id="saveMsg"></span>
+    <button type="button" id="applyNow">Bruk nå</button>
+    <button type="button" class="primary" id="save">Lagre</button>
   </div>
 
-  <button id="save">Lagre</button>
-  <button id="applyNow">Bruk nå</button>
-  <span id="status"></span>
-
+  <script type="text/javascript" src="circadian.js"></script>
   <script type="text/javascript" src="/homey.js" data-origin="settings"></script>
   <script type="text/javascript">
+    const C = window.Circadian;
+    const SVG = 'http://www.w3.org/2000/svg';
+    const WEEKEND_LABEL = 'Egen plan for helg (fredag kl. 12 – søndag kl. 12)';
+
+    let HomeyRef = null;
     let devices = [];
     let config = { enabled: true, groups: [] };
-    let HomeyRef = null;
+    let status = null;
+    let savedJson = '';
+    let view = { name: 'overview', groupId: null };
+    let refreshDial = null; // redraws the clock and point editor on a room's page
+    const roomUi = {}; // groupId -> { tab, selected } (kept while switching views)
+
+    // --- small helpers ---
+
+    function h(tag, props, children) {
+      const e = document.createElement(tag);
+      Object.entries(props || {}).forEach(([k, v]) => {
+        if (v == null || v === false) return;
+        if (k === 'class') e.className = v;
+        else if (k === 'text') e.textContent = v;
+        else if (k === 'style') e.style.cssText = v;
+        else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+        else e.setAttribute(k, v === true ? '' : v);
+      });
+      (children || []).forEach((c) => { if (c != null) e.append(c); });
+      return e;
+    }
+
+    function s(tag, attrs, parent) {
+      const e = document.createElementNS(SVG, tag);
+      Object.entries(attrs || {}).forEach(([k, v]) => e.setAttribute(k, v));
+      if (parent) parent.appendChild(e);
+      return e;
+    }
 
     function makeId() {
       return 'g-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -208,7 +208,7 @@
     function defaultGroup() {
       return {
         id: makeId(),
-        name: 'Ny gruppe',
+        name: 'Nytt rom',
         deviceIds: [],
         enabled: true,
         mode: 'sun',
@@ -231,1018 +231,836 @@
       };
     }
 
-    const WEEKEND_LABEL = 'Egen plan for helg (fredag kl. 12 – søndag kl. 12)';
-    const clockTab = {}; // groupId -> 'weekday' | 'weekend', which clock is shown
+    function pct(v) { return v == null ? '–' : Math.round(v * 100) + ' %'; }
+    function hhmm(m) {
+      m = ((Math.round(m) % 1440) + 1440) % 1440;
+      return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+    }
+    function toMin(str) { const [hh, mm] = String(str).split(':').map(Number); return (hh || 0) * 60 + (mm || 0); }
+    function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 
-    function labeledRow(labelText, inputEl) {
-      const r = document.createElement('div');
-      r.className = 'row';
-      const l = document.createElement('label');
-      l.textContent = labelText;
-      r.appendChild(l);
-      r.appendChild(inputEl);
-      return r;
+    // light_temperature (0 = coldest, 1 = warmest) shown as an approximate
+    // light colour: 6500 K .. 2200 K, then Tanner Helland's kelvin -> RGB.
+    function lightRgb(t) {
+      const k = (6500 - clamp(t, 0, 1) * 4300) / 100;
+      let r, g, b;
+      if (k <= 66) { r = 255; g = 99.47 * Math.log(k) - 161.12; } else { r = 329.7 * Math.pow(k - 60, -0.1332); g = 288.12 * Math.pow(k - 60, -0.0755); }
+      if (k >= 66) b = 255; else if (k <= 19) b = 0; else b = 138.52 * Math.log(k - 10) - 305.04;
+      return [r, g, b].map((v) => Math.round(clamp(v, 0, 255)));
+    }
+    function lightCss(t, alpha) {
+      const [r, g, b] = lightRgb(t == null ? 0.55 : t);
+      return alpha == null ? `rgb(${r},${g},${b})` : `rgba(${r},${g},${b},${alpha})`;
+    }
+    function tempWords(t) {
+      if (t == null) return '';
+      return t >= 0.7 ? 'varmt lys' : t >= 0.35 ? 'nøytralt lys' : 'kaldt dagslys';
     }
 
-    function checkbox(checked, onChange) {
-      const cb = document.createElement('input');
-      cb.type = 'checkbox';
-      cb.checked = checked;
-      cb.addEventListener('change', () => onChange(cb.checked));
-      return cb;
+    // "Now" on the Homey's own clock (its time zone may differ from the phone's)
+    function homeyNow() {
+      const tz = status && status.timeZone ? status.timeZone : undefined;
+      const d = new Date();
+      const minutes = C.zonedMinutesOfDay(d, tz);
+      const weekday = C.zonedWeekday(d, tz);
+      return { minutes, weekday, weekend: C.isWeekendPlan(weekday, minutes) };
+    }
+    function sunTimes() {
+      return (status && status.sun) || { sunriseMinutes: null, sunsetMinutes: null };
+    }
+    function valuesAt(group, minutes, weekend) {
+      return C.groupValues(group, minutes, sunTimes(), weekend);
     }
 
-    function timeInput(value, onChange) {
-      const t = document.createElement('input');
-      t.type = 'time';
+    function lightStatus(id) {
+      if (!status) return null;
+      for (const g of status.groups || []) {
+        const l = (g.lights || []).find((x) => x.id === id);
+        if (l) return l;
+      }
+      return null;
+    }
+    function deviceName(id) {
+      const d = devices.find((x) => x.id === id);
+      return d ? d.name : 'Ukjent lys';
+    }
+
+    // --- saving ---
+
+    function isDirty() { return JSON.stringify(config) !== savedJson; }
+    function updateSaveBar(text, cls) {
+      const msg = document.getElementById('saveMsg');
+      const dirty = isDirty();
+      document.getElementById('save').disabled = !dirty;
+      if (text) {
+        msg.textContent = text;
+        msg.className = 'msg ' + (cls || '');
+        return;
+      }
+      msg.textContent = dirty ? 'Endringer er ikke lagret' : '';
+      msg.className = 'msg' + (dirty ? ' dirty' : '');
+    }
+    function save() {
+      return HomeyRef.api('POST', '/config', config).then(() => {
+        savedJson = JSON.stringify(config);
+        updateSaveBar('Lagret ✓', 'ok');
+        setTimeout(() => updateSaveBar(), 2000);
+        return loadStatus();
+      }).catch((err) => {
+        updateSaveBar('Kunne ikke lagre: ' + (err && err.message ? err.message : err), 'dirty');
+      });
+    }
+
+    function loadStatus() {
+      return HomeyRef.api('GET', '/status').then((st) => {
+        status = st;
+        if (view.name === 'overview') render();
+        else if (refreshDial) refreshDial();
+      }).catch(() => { /* keep showing the last status; the next refresh retries */ });
+    }
+
+    function switchButton(on, label, onChange) {
+      const b = h('button', { type: 'button', class: 'switch', role: 'switch', 'aria-checked': String(!!on), 'aria-label': label });
+      b.addEventListener('click', () => {
+        const next = b.getAttribute('aria-checked') !== 'true';
+        b.setAttribute('aria-checked', String(next));
+        onChange(next);
+      });
+      return b;
+    }
+
+    // --- overview ---
+
+    function renderOverview(root) {
+      root.append(h('div', { class: 'top' }, [
+        h('h1', { text: 'Døgnrytmelys' }),
+        h('div', { class: 'row', style: 'min-height:0' }, [
+          h('span', { class: 'small muted', text: config.enabled !== false ? 'På' : 'Av' }),
+          switchButton(config.enabled !== false, 'Døgnrytmestyring for hele appen', (on) => {
+            config.enabled = on;
+            save();
+            render();
+          }),
+        ]),
+      ]));
+
+      if (config.enabled === false) {
+        root.append(h('div', { class: 'banner', text: 'Døgnrytmestyring er skrudd av for hele appen. Lysene styres ikke.' }));
+      }
+      if (config.groups.length === 0) {
+        root.append(h('p', { class: 'muted', text: 'Ingen rom ennå. Lag et rom og velg hvilke lys som skal følge døgnrytmen.' }));
+      }
+
+      const now = homeyNow();
+      config.groups.forEach((group) => root.append(roomCard(group, now)));
+
+      root.append(h('div', { class: 'overview-actions' }, [
+        h('button', {
+          type: 'button',
+          text: '+ Nytt rom',
+          onclick: () => {
+            const g = defaultGroup();
+            config.groups.push(g);
+            openRoom(g.id);
+          },
+        }),
+        h('button', {
+          type: 'button',
+          text: 'Lås opp alle lys',
+          onclick: () => HomeyRef.api('POST', '/resume-all').then(loadStatus)
+            .catch((err) => updateSaveBar('Kunne ikke låse opp: ' + err.message, 'dirty')),
+        }),
+      ]));
+    }
+
+    function roomCard(group, now) {
+      const enabled = group.enabled !== false && config.enabled !== false;
+      const v = valuesAt(group, now.minutes, now.weekend);
+      const weekendNow = now.weekend && group.weekendEnabled;
+
+      const stops = [];
+      for (let hr = 0; hr <= 24; hr++) {
+        const m = Math.min(hr * 60, 1439);
+        stops.push(lightCss(valuesAt(group, m, C.isWeekendPlan(now.weekday, m)).temp) + ' ' + (hr / 24 * 100).toFixed(1) + '%');
+      }
+
+      const glow = h('span', { class: 'glow' });
+      glow.style.background = enabled ? lightCss(v.temp) : 'var(--track)';
+      if (enabled) glow.style.boxShadow = '0 0 ' + Math.round(6 + (v.dim == null ? 0.7 : v.dim) * 16) + 'px ' + lightCss(v.temp, 0.8);
+
+      const lamps = h('div', { class: 'lamps' });
+      (group.deviceIds || []).forEach((id) => lamps.append(lampTile(id)));
+      if (!group.deviceIds || group.deviceIds.length === 0) {
+        lamps.append(h('span', { class: 'hint', text: 'Ingen lys valgt ennå.' }));
+      }
+
+      const marker = h('span', { class: 'now' });
+      marker.style.left = 'calc(' + (now.minutes / 1440 * 100).toFixed(2) + '% - 1.5px)';
+      const strip = h('div', { class: 'strip' }, [marker]);
+      strip.style.background = 'linear-gradient(to right, ' + stops.join(',') + ')';
+
+      return h('div', { class: 'room' + (enabled ? '' : ' off') }, [
+        h('div', { class: 'room-head' }, [
+          glow,
+          h('h2', { text: group.name || 'Uten navn' }),
+          h('span', { class: 'chip', text: (group.mode === 'keyframes' ? 'Egne punkter' : 'Følger sola') + (weekendNow ? ' · helg' : '') }),
+        ]),
+        h('div', { class: 'room-now' }, [
+          h('span', { class: 'big num', text: 'Varme ' + pct(v.temp) + (v.dim != null ? ' · lys ' + pct(v.dim) : '') }),
+          h('span', { class: 'small muted', text: enabled ? tempWords(v.temp) + ' nå' : 'skrudd av' }),
+        ]),
+        strip,
+        h('div', { class: 'strip-labels' }, ['00', '06', '12', '18', '24'].map((t) => h('span', { text: t }))),
+        lamps,
+        h('div', { class: 'room-foot' }, [
+          h('div', { class: 'toggle' }, [
+            switchButton(group.enabled !== false, 'Døgnrytme for ' + (group.name || 'rommet'), (on) => {
+              group.enabled = on;
+              save();
+              render();
+            }),
+            h('span', { text: 'Døgnrytme' }),
+          ]),
+          h('button', { type: 'button', class: 'link', text: 'Endre plan ›', onclick: () => openRoom(group.id) }),
+        ]),
+      ]);
+    }
+
+    function lampTile(id) {
+      const l = lightStatus(id);
+      const name = l ? l.name : deviceName(id);
+      let text = 'Venter på status';
+      let color = null;
+      let strength = 0.6;
+      if (l) {
+        if (l.on === false) text = 'Av';
+        else if (l.on) {
+          color = lightCss(l.temp);
+          strength = l.dim == null ? 0.7 : l.dim;
+          text = (l.temp != null ? 'varme ' + pct(l.temp) + ' · ' : '') + 'lys ' + pct(l.dim);
+        }
+        if (l.lock) text = (l.lock === 'untilOff' ? 'Pause til av' : 'Låst') + ' · trykk for å låse opp';
+        else if (l.status && l.status.check === 'error') text = l.status.text;
+      }
+      const bulb = h('span', { class: 'bulb' + (color ? '' : ' off') });
+      if (color) {
+        bulb.style.background = color;
+        bulb.style.boxShadow = '0 0 ' + Math.round(4 + strength * 20) + 'px ' + color;
+      }
+      const cls = 'lamp' + (l && l.lock ? ' locked' : '') + (l && !l.lock && l.status && l.status.check === 'error' ? ' error' : '');
+      const children = [bulb, h('span', { class: 'n', text: name }), h('span', { class: 's', text })];
+      if (l && l.lock) {
+        return h('button', {
+          type: 'button',
+          class: cls,
+          'aria-label': name + ': ' + text,
+          onclick: () => HomeyRef.api('POST', '/resume', { deviceId: id }).then(loadStatus)
+            .catch((err) => updateSaveBar('Kunne ikke låse opp: ' + err.message, 'dirty')),
+        }, children);
+      }
+      return h('div', { class: cls, title: l && l.status ? l.status.text : '' }, children);
+    }
+
+    // --- room page ---
+
+    function openRoom(groupId) {
+      view = { name: 'room', groupId };
+      render();
+      window.scrollTo(0, 0);
+    }
+
+    function renderRoom(root, group) {
+      const ui = roomUi[group.id] || (roomUi[group.id] = { tab: 'weekday', selected: -1 });
+      if (!group.weekendEnabled) ui.tab = 'weekday';
+      if (!Array.isArray(group.keyframes)) group.keyframes = [];
+      if (!Array.isArray(group.weekendKeyframes)) group.weekendKeyframes = [];
+
+      const nameInput = h('input', { type: 'text', class: 'group-name', 'aria-label': 'Navn på rommet', placeholder: 'Navn på rommet' });
+      nameInput.value = group.name || '';
+      nameInput.addEventListener('input', () => { group.name = nameInput.value; });
+
+      root.append(h('div', { class: 'back-row' }, [
+        h('button', { type: 'button', class: 'link', text: '‹ Alle rom', onclick: () => { view = { name: 'overview' }; render(); } }),
+        h('div', { class: 'row', style: 'min-height:0' }, [
+          h('span', { class: 'small muted', text: 'Døgnrytme' }),
+          switchButton(group.enabled !== false, 'Døgnrytme for rommet', (on) => { group.enabled = on; updateSaveBar(); }),
+        ]),
+      ]));
+      root.append(nameInput);
+
+      root.append(h('div', { class: 'seg', role: 'group', 'aria-label': 'Plan' }, [
+        ['sun', 'Følg sola'], ['keyframes', 'Egne punkter'],
+      ].map(([id, text]) => h('button', {
+        type: 'button',
+        'aria-pressed': String((group.mode || 'sun') === id),
+        text,
+        onclick: () => { group.mode = id; ui.selected = -1; render(); },
+      }))));
+
+      // Plan: weekend switch, weekday/weekend tabs, the clock
+      const plan = h('div', { class: 'section' });
+      plan.append(h('div', { class: 'row' }, [
+        h('label', { text: WEEKEND_LABEL }),
+        switchButton(!!group.weekendEnabled, WEEKEND_LABEL, (on) => { group.weekendEnabled = on; render(); }),
+      ]));
+      if (group.weekendEnabled) {
+        plan.append(h('div', { class: 'seg', role: 'group', 'aria-label': 'Vis plan for' }, [
+          ['weekday', 'Hverdag'], ['weekend', 'Helg'],
+        ].map(([id, text]) => h('button', {
+          type: 'button',
+          'aria-pressed': String(ui.tab === id),
+          text,
+          onclick: () => { ui.tab = id; ui.selected = -1; render(); },
+        }))));
+      }
+
+      const kfHolder = h('div', { class: 'stack' });
+      const redrawEditor = () => renderKeyframeEditor(kfHolder, group, ui, () => dial.redraw());
+      const dial = buildDial(group, ui, redrawEditor);
+      plan.append(dial.el);
+      if (group.mode === 'keyframes') {
+        plan.append(kfHolder);
+        redrawEditor();
+      }
+      root.append(plan);
+      refreshDial = () => { dial.redraw(); if (group.mode === 'keyframes') redrawEditor(); };
+
+      if (group.mode !== 'keyframes') {
+        const sunBox = h('div', { class: 'section' }, [h('h3', { text: 'Sola og tider' })]);
+        sunBox.append(buildSunControls(group, dial.redraw));
+        root.append(sunBox);
+      }
+
+      const lightsBox = h('div', { class: 'section' }, [h('h3', { text: 'Lys i rommet' })]);
+      const list = h('div', { class: 'devices-list' });
+      renderDeviceList(list, group);
+      lightsBox.append(list);
+      root.append(lightsBox);
+
+      const more = h('div', { class: 'section' }, [h('h3', { text: 'Mer' })]);
+      more.append(buildCommonControls(group));
+      more.append(buildSimulateRow(group));
+      root.append(more);
+
+      let armed = false;
+      const del = h('button', { type: 'button', class: 'danger', text: 'Slett rommet' });
+      del.addEventListener('click', () => {
+        if (!armed) {
+          armed = true;
+          del.textContent = 'Trykk igjen for å slette (lagres når du trykker Lagre)';
+          setTimeout(() => { armed = false; del.textContent = 'Slett rommet'; }, 4000);
+          return;
+        }
+        config.groups = config.groups.filter((g) => g.id !== group.id);
+        view = { name: 'overview' };
+        render();
+      });
+      root.append(del);
+    }
+
+    /**
+     * The 24-hour clock: an outer ring in the light's colour, brightness as
+     * bars inside it, and a hand that shows now (drag it to look at another
+     * time). With "Egne punkter" the points sit on the ring: tap the ring to
+     * add one, drag a point to move it, drag it into the middle to delete it.
+     */
+    function buildDial(group, ui, onPointsChanged) {
+      const SIZE = 320, CX = 160, R = 112, RING = 22, CENTRE = 58;
+      const svg = s('svg', { class: 'dial', viewBox: '0 0 ' + SIZE + ' ' + SIZE, role: 'img', 'aria-label': 'Døgnklokke med lysfarge og lysstyrke' });
+      let preview = null;
+      let drag = null; // { type: 'point', index, overTrash } | { type: 'hand' }
+      const resetBtn = h('button', { type: 'button', class: 'link', text: 'Tilbake til nå', hidden: true });
+      const hint = h('p', { class: 'hint' });
+      const wrap = h('div', { class: 'dial-wrap' }, [svg, h('div', { class: 'dial-foot' }, [hint, resetBtn])]);
+      resetBtn.addEventListener('click', () => { preview = null; redraw(); });
+
+      const isKf = () => group.mode === 'keyframes';
+      const weekend = () => ui.tab === 'weekend';
+      const points = () => (weekend() ? group.weekendKeyframes : group.keyframes);
+      const pos = (m, r) => { const a = (m / 1440) * 2 * Math.PI; return [CX + r * Math.sin(a), CX - r * Math.cos(a)]; };
+      const minutesAt = (x, y) => {
+        let a = Math.atan2(x - CX, CX - y);
+        if (a < 0) a += 2 * Math.PI;
+        return Math.round((a / (2 * Math.PI)) * 1440 / 5) * 5 % 1440;
+      };
+      function arc(m0, m1, r) {
+        const [x0, y0] = pos(m0, r), [x1, y1] = pos(m1, r);
+        return 'M' + x0.toFixed(2) + ',' + y0.toFixed(2) + ' A' + r + ',' + r + ' 0 0 1 ' + x1.toFixed(2) + ',' + y1.toFixed(2);
+      }
+      function label(x, y, str, style) {
+        const t = s('text', { x, y, 'text-anchor': 'middle' }, svg);
+        t.textContent = str;
+        t.style.cssText = style;
+      }
+
+      function redraw() {
+        svg.innerHTML = '';
+        const now = homeyNow();
+        const at = preview != null ? preview : now.minutes;
+        const val = (m) => valuesAt(group, m, weekend());
+
+        // Colour ring and brightness bars
+        for (let m = 0; m < 1440; m += 10) {
+          s('path', { d: arc(m, m + 10.6, R), fill: 'none', stroke: lightCss(val(m + 5).temp), 'stroke-width': RING }, svg);
+        }
+        for (let m = 0; m < 1440; m += 20) {
+          const v = val(m);
+          if (v.dim == null) continue;
+          const [x0, y0] = pos(m, R - RING / 2 - 5), [x1, y1] = pos(m, R - RING / 2 - 5 - v.dim * 34);
+          s('line', { x1: x0, y1: y0, x2: x1, y2: y1, stroke: lightCss(v.temp), 'stroke-width': 2.4, 'stroke-linecap': 'round' }, svg);
+        }
+
+        // Hour ticks and labels
+        for (let hr = 0; hr < 24; hr++) {
+          const major = hr % 6 === 0;
+          const [x0, y0] = pos(hr * 60, R + RING / 2 + 3), [x1, y1] = pos(hr * 60, R + RING / 2 + (major ? 9 : 6));
+          const l = s('line', { x1: x0, y1: y0, x2: x1, y2: y1, 'stroke-width': major ? 2 : 1 }, svg);
+          l.style.stroke = major ? 'var(--muted)' : 'var(--border)';
+        }
+        [0, 6, 12, 18].forEach((hr) => {
+          const [x, y] = pos(hr * 60, R + RING / 2 + 21);
+          label(x, y + 4, String(hr).padStart(2, '0'), 'fill: var(--muted); font-size: 12px;');
+        });
+
+        // Sun (or the fixed / weekend wake and sleep times)
+        if (!isKf()) {
+          const sun = sunTimes();
+          const useSun = !weekend() && group.useSunTimes !== false && sun.sunriseMinutes != null;
+          const marks = useSun
+            ? [[sun.sunriseMinutes, 'Soloppgang'], [sun.sunsetMinutes, 'Solnedgang']]
+            : weekend()
+              ? [[toMin(group.weekendWakeTime || group.wakeTime), 'Våkne (helg)'], [toMin(group.weekendSleepTime || group.sleepTime), 'Legge seg (helg)']]
+              : [[toMin(group.wakeTime), 'Våkne'], [toMin(group.sleepTime), 'Legge seg']];
+          marks.forEach(([m, title]) => {
+            const [x, y] = pos(m, R + RING / 2 + 6);
+            const c = s('circle', { cx: x, cy: y, r: 5 }, svg);
+            c.style.fill = 'var(--sun)';
+            s('title', {}, c).textContent = title + ' ' + hhmm(m);
+          });
+        }
+
+        // Points. An empty weekend list falls back to the weekday points:
+        // those are shown faint, and the first tap on the ring starts a
+        // weekend list of its own.
+        if (isKf()) {
+          const ghost = weekend() && points().length === 0;
+          (ghost ? group.keyframes : points()).forEach((k, i) => {
+            const [x, y] = pos(toMin(k.time), R);
+            const selected = !ghost && i === ui.selected;
+            const c = s('circle', { cx: x, cy: y, r: 8 + (k.dim || 0) * 5, fill: lightCss(k.temp), 'stroke-width': selected ? 3.5 : 2 }, svg);
+            c.style.stroke = selected ? 'var(--accent)' : 'var(--text)';
+            if (ghost) {
+              c.setAttribute('opacity', '0.35');
+              c.style.pointerEvents = 'none';
+            } else {
+              c.dataset.index = i;
+              c.style.cursor = 'grab';
+              if (drag && drag.type === 'point' && drag.index === i && drag.overTrash) c.setAttribute('opacity', '0.35');
+            }
+          });
+        }
+
+        // Hand
+        const [hx, hy] = pos(at, R + RING / 2 + 6);
+        const handColour = preview != null ? 'var(--accent)' : 'var(--text)';
+        const hand = s('line', { x1: CX, y1: CX, x2: hx, y2: hy, 'stroke-width': 2, 'stroke-linecap': 'round' }, svg);
+        hand.style.stroke = handColour;
+        const knob = s('circle', { cx: hx, cy: hy, r: 6, 'stroke-width': 2 }, svg);
+        knob.style.fill = 'var(--surface)';
+        knob.style.stroke = handColour;
+
+        // Centre: values at the hand, or a bin while a point is dragged
+        const centre = s('circle', { cx: CX, cy: CX, r: CENTRE, 'stroke-width': 1 }, svg);
+        if (drag && drag.type === 'point') {
+          centre.style.fill = drag.overTrash ? 'var(--danger)' : 'var(--surface)';
+          centre.style.stroke = 'var(--danger)';
+          label(CX, CX + 5, 'Slipp her for å slette', 'fill: ' + (drag.overTrash ? '#fff' : 'var(--danger)') + '; font-size: 11.5px;');
+        } else {
+          centre.style.fill = 'var(--surface)';
+          centre.style.stroke = 'var(--border)';
+          const v = val(at);
+          label(CX, CX - 24, (preview != null ? 'kl. ' : 'nå ') + hhmm(at), 'fill: var(--muted); font-size: 12px;');
+          label(CX, CX + 6, pct(v.temp), 'fill: var(--text); font-size: 26px; font-weight: 700;');
+          label(CX, CX + 24, tempWords(v.temp), 'fill: var(--muted); font-size: 11.5px;');
+          if (v.dim != null) label(CX, CX + 40, 'lysstyrke ' + pct(v.dim), 'fill: var(--muted); font-size: 11.5px;');
+        }
+
+        resetBtn.hidden = preview == null;
+        hint.textContent = isKf()
+          ? 'Trykk på ringen for å legge til et punkt. Dra et punkt for å flytte det, eller inn i midten for å slette det.'
+          : 'Ringen viser lysfargen, strekene lysstyrken. Dra viseren for å se en annen tid.';
+      }
+
+      function svgPoint(evt) {
+        const p = svg.createSVGPoint();
+        p.x = evt.clientX;
+        p.y = evt.clientY;
+        const ctm = svg.getScreenCTM();
+        return ctm ? p.matrixTransform(ctm.inverse()) : { x: CX, y: CX };
+      }
+
+      svg.addEventListener('pointerdown', (evt) => {
+        const p = svgPoint(evt);
+        const dist = Math.hypot(p.x - CX, p.y - CX);
+        const idx = evt.target.dataset ? evt.target.dataset.index : undefined;
+        if (idx != null) {
+          ui.selected = Number(idx);
+          drag = { type: 'point', index: ui.selected, overTrash: false };
+          onPointsChanged();
+        } else if (isKf() && Math.abs(dist - R) <= RING / 2 + 6) {
+          // Tap on the ring: a new point with the values the plan has there now
+          const m = minutesAt(p.x, p.y);
+          const v = valuesAt(group, m, weekend());
+          const round = (x, fallback) => Math.round((x == null ? fallback : x) * 20) / 20;
+          points().push({ time: hhmm(m), temp: round(v.temp, 0.7), dim: round(v.dim, 0.7) });
+          ui.selected = points().length - 1;
+          drag = { type: 'point', index: ui.selected, overTrash: false };
+          onPointsChanged();
+        } else if (dist > CENTRE) {
+          drag = { type: 'hand' };
+          preview = minutesAt(p.x, p.y);
+        } else {
+          return;
+        }
+        svg.setPointerCapture(evt.pointerId);
+        evt.preventDefault();
+        redraw();
+      });
+      svg.addEventListener('pointermove', (evt) => {
+        if (!drag) return;
+        const p = svgPoint(evt);
+        if (drag.type === 'hand') {
+          preview = minutesAt(p.x, p.y);
+        } else {
+          drag.overTrash = Math.hypot(p.x - CX, p.y - CX) < CENTRE;
+          if (!drag.overTrash) points()[drag.index].time = hhmm(minutesAt(p.x, p.y));
+        }
+        redraw();
+      });
+      const endDrag = () => {
+        if (!drag) return;
+        const wasPoint = drag.type === 'point';
+        if (wasPoint && drag.overTrash) {
+          points().splice(drag.index, 1);
+          ui.selected = -1;
+        }
+        drag = null;
+        redraw();
+        if (wasPoint) {
+          onPointsChanged();
+          updateSaveBar();
+        }
+      };
+      svg.addEventListener('pointerup', endDrag);
+      svg.addEventListener('pointercancel', endDrag);
+
+      redraw();
+      return { el: wrap, redraw };
+    }
+
+    function renderKeyframeEditor(holder, group, ui, redrawDial) {
+      holder.innerHTML = '';
+      const list = ui.tab === 'weekend' ? group.weekendKeyframes : group.keyframes;
+      const again = () => renderKeyframeEditor(holder, group, ui, redrawDial);
+
+      if (ui.tab === 'weekend' && list.length === 0) {
+        holder.append(h('p', { class: 'hint' }, [
+          'Ingen helgepunkter ennå, så hverdagspunktene (svake på klokka) brukes i helgen. Trykk på ringen for å lage egne, eller ',
+          h('button', {
+            type: 'button',
+            class: 'link',
+            text: 'start med en kopi av hverdagspunktene',
+            onclick: () => {
+              group.weekendKeyframes = group.keyframes.map((k) => Object.assign({}, k));
+              ui.selected = -1;
+              render();
+            },
+          }),
+          '.',
+        ]));
+        return;
+      }
+      if (list.length === 0) {
+        holder.append(h('p', { class: 'hint', text: 'Ingen punkter ennå. Trykk på ringen for å legge til det første.' }));
+        return;
+      }
+
+      const kf = list[ui.selected];
+      if (kf) {
+        const timeInput = h('input', { type: 'time', 'aria-label': 'Klokkeslett' });
+        timeInput.value = kf.time;
+        timeInput.addEventListener('change', () => { kf.time = timeInput.value; redrawDial(); again(); });
+
+        const tempLabel = h('label', { text: 'Varme: ' + pct(kf.temp) });
+        const tempInput = h('input', { type: 'range', class: 'temp-slider', min: '0', max: '1', step: '0.05', 'aria-label': 'Varme' });
+        tempInput.value = kf.temp;
+        tempInput.addEventListener('input', () => { kf.temp = Number(tempInput.value); tempLabel.textContent = 'Varme: ' + pct(kf.temp); redrawDial(); });
+        tempInput.addEventListener('change', again);
+
+        const dimLabel = h('label', { text: 'Lysstyrke: ' + pct(kf.dim) });
+        const dimInput = h('input', { type: 'range', min: '0', max: '1', step: '0.05', 'aria-label': 'Lysstyrke' });
+        dimInput.value = kf.dim;
+        dimInput.addEventListener('input', () => { kf.dim = Number(dimInput.value); dimLabel.textContent = 'Lysstyrke: ' + pct(kf.dim); redrawDial(); });
+        dimInput.addEventListener('change', again);
+
+        holder.append(h('div', { class: 'kf-panel' }, [
+          h('div', { class: 'row' }, [h('b', { text: 'Valgt punkt' }), timeInput]),
+          tempLabel, tempInput,
+          dimLabel, dimInput,
+          h('div', { class: 'row' }, [
+            h('span'),
+            h('button', {
+              type: 'button',
+              class: 'danger',
+              text: 'Slett punkt',
+              onclick: () => { list.splice(ui.selected, 1); ui.selected = -1; redrawDial(); again(); updateSaveBar(); },
+            }),
+          ]),
+        ]));
+      }
+
+      const rows = [...list].sort((a, b) => toMin(a.time) - toMin(b.time)).map((k) => {
+        const i = list.indexOf(k);
+        const sw = h('span', { class: 'sw' });
+        sw.style.background = lightCss(k.temp);
+        return h('button', {
+          type: 'button',
+          class: 'kf-row num',
+          'aria-pressed': String(i === ui.selected),
+          onclick: () => { ui.selected = i; redrawDial(); again(); },
+        }, [sw, k.time + '  ·  varme ' + pct(k.temp) + '  ·  lys ' + pct(k.dim)]);
+      });
+      holder.append(h('div', { class: 'kf-list' }, rows));
+    }
+
+    function labeledRow(labelText, inputEl, cls) {
+      return h('div', { class: 'row' + (cls ? ' ' + cls : '') }, [h('label', { text: labelText }), inputEl]);
+    }
+
+    function timeField(value, onChange) {
+      const t = h('input', { type: 'time' });
       t.value = value;
       t.addEventListener('change', () => onChange(t.value));
       return t;
     }
 
-    function lerpColor(t, a, b) {
-      const pa = a.match(/\w\w/g).map((h) => parseInt(h, 16));
-      const pb = b.match(/\w\w/g).map((h) => parseInt(h, 16));
-      const rgb = pa.map((v, i) => Math.round(v + (pb[i] - v) * t));
-      return 'rgb(' + rgb.join(',') + ')';
-    }
-
-    function markerColor(temp) {
-      // 0 = cold (blueish white), 1 = warm (orange)
-      return lerpColor(temp, '#8ecbff', '#ffb454');
-    }
-
-    function angleForMinutes(minutes, cx, cy, r) {
-      const deg = (minutes / 1440) * 360;
-      const rad = (deg * Math.PI) / 180;
-      return { x: cx + r * Math.sin(rad), y: cy - r * Math.cos(rad) };
-    }
-
-    function minutesForPoint(px, py, cx, cy) {
-      const dx = px - cx;
-      const dy = py - cy;
-      let deg = (Math.atan2(dx, -dy) * 180) / Math.PI;
-      if (deg < 0) deg += 360;
-      let minutes = Math.round((deg / 360) * 1440 / 5) * 5; // snap to 5 min
-      if (minutes >= 1440) minutes -= 1440;
-      return minutes;
-    }
-
-    function minutesToTimeStr(minutes) {
-      const h = Math.floor(minutes / 60);
-      const m = minutes % 60;
-      return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
-    }
-
-    function timeStrToMinutes(str) {
-      const [h, m] = str.split(':').map(Number);
-      return (h || 0) * 60 + (m || 0);
-    }
-
-    function svgPointFromEvent(svg, evt) {
-      const pt = svg.createSVGPoint();
-      const clientX = evt.touches ? evt.touches[0].clientX : evt.clientX;
-      const clientY = evt.touches ? evt.touches[0].clientY : evt.clientY;
-      pt.x = clientX;
-      pt.y = clientY;
-      const ctm = svg.getScreenCTM();
-      if (!ctm) return { x: 0, y: 0 };
-      const inv = ctm.inverse();
-      const p = pt.matrixTransform(inv);
-      return { x: p.x, y: p.y };
-    }
-
-    // Makes a "Label: NN%" <label> clickable to type an exact value instead of
-    // only dragging its slider. getVal/setVal work in the 0..1 range used
-    // internally; the input shown to the user is 0..100.
-    function makePercentLabelEditable(labelEl, prefixText, getVal, setVal) {
-      labelEl.style.cursor = 'pointer';
-      labelEl.title = 'Klikk for å skrive inn verdi';
-      labelEl.addEventListener('click', () => {
-        let applied = false;
-        const input = document.createElement('input');
-        input.type = 'number';
-        input.min = '0';
-        input.max = '100';
-        input.step = '1';
-        input.value = Math.round(getVal() * 100);
-        input.style.width = '64px';
-        input.style.marginLeft = '6px';
-
-        const applyAndClose = () => {
-          if (applied) return;
-          applied = true;
-          let v = Number(input.value);
-          if (Number.isNaN(v)) v = Math.round(getVal() * 100);
-          v = Math.max(0, Math.min(100, v));
-          setVal(v / 100);
-        };
-        input.addEventListener('keydown', (evt) => {
-          if (evt.key === 'Enter') { evt.preventDefault(); applyAndClose(); }
-          else if (evt.key === 'Escape') { applied = true; labelEl.textContent = prefixText + Math.round(getVal() * 100) + '%'; }
-        });
-        input.addEventListener('blur', applyAndClose);
-        input.addEventListener('click', (evt) => evt.stopPropagation());
-
-        labelEl.textContent = prefixText;
-        labelEl.appendChild(input);
-        input.focus();
-        input.select();
+    function percentRow(text, value, cls, onInput) {
+      const l = h('label', { text: text + ': ' + pct(value) });
+      const r = h('input', { type: 'range', class: cls, min: '0', max: '1', step: '0.05', 'aria-label': text });
+      r.value = value;
+      r.addEventListener('input', () => {
+        const v = Number(r.value);
+        l.textContent = text + ': ' + pct(v);
+        onInput(v);
       });
+      return h('div', { class: 'stack', style: 'gap:4px' }, [l, r]);
     }
 
-    function renderClock(container, group) {
-      const size = 300;
-      const cx = size / 2;
-      const cy = size / 2;
-      const r = 118;
+    function buildSunControls(group, redrawDial) {
+      const wrap = h('div', { class: 'stack' });
+      const changed = (fn) => (v) => { fn(v); redrawDial(); updateSaveBar(); };
 
-      container.innerHTML = '';
-
-      const wrap = document.createElement('div');
-      wrap.className = 'clock-wrap';
-
-      const svgNS = 'http://www.w3.org/2000/svg';
-      const svg = document.createElementNS(svgNS, 'svg');
-      svg.setAttribute('class', 'clock');
-      svg.setAttribute('viewBox', '0 0 ' + size + ' ' + size);
-      svg.setAttribute('width', size);
-      svg.setAttribute('height', size);
-
-      // background ring
-      const ring = document.createElementNS(svgNS, 'circle');
-      ring.setAttribute('cx', cx);
-      ring.setAttribute('cy', cy);
-      ring.setAttribute('r', r);
-      ring.setAttribute('fill', 'none');
-      ring.style.stroke = 'var(--clock-ring)';
-      ring.setAttribute('stroke-width', '18');
-      svg.appendChild(ring);
-
-      // hour ticks + labels at 0/6/12/18
-      for (let h = 0; h < 24; h++) {
-        const p1 = angleForMinutes(h * 60, cx, cy, r - 11);
-        const p2 = angleForMinutes(h * 60, cx, cy, r + 11);
-        const tick = document.createElementNS(svgNS, 'line');
-        tick.setAttribute('x1', p1.x);
-        tick.setAttribute('y1', p1.y);
-        tick.setAttribute('x2', p2.x);
-        tick.setAttribute('y2', p2.y);
-        tick.style.stroke = h % 6 === 0 ? 'var(--clock-tick-major)' : 'var(--clock-tick)';
-        tick.setAttribute('stroke-width', h % 6 === 0 ? '2' : '1');
-        svg.appendChild(tick);
-
-        if (h % 6 === 0) {
-          const lp = angleForMinutes(h * 60, cx, cy, r + 26);
-          const label = document.createElementNS(svgNS, 'text');
-          label.setAttribute('x', lp.x);
-          label.setAttribute('y', lp.y + 4);
-          label.setAttribute('text-anchor', 'middle');
-          label.setAttribute('font-size', '12');
-          label.style.fill = 'var(--clock-label)';
-          label.textContent = String(h).padStart(2, '0');
-          svg.appendChild(label);
-        }
+      wrap.append(labeledRow('Følg soloppgang og solnedgang', switchButton(group.useSunTimes !== false, 'Følg soloppgang og solnedgang', changed((on) => { group.useSunTimes = on; }))));
+      wrap.append(labeledRow('Våkne (når sola ikke følges)', timeField(group.wakeTime, changed((v) => { group.wakeTime = v; }))));
+      wrap.append(labeledRow('Legge seg (når sola ikke følges)', timeField(group.sleepTime, changed((v) => { group.sleepTime = v; }))));
+      if (group.weekendEnabled) {
+        wrap.append(labeledRow('Helg: våkne', timeField(group.weekendWakeTime || '08:30', changed((v) => { group.weekendWakeTime = v; })), 'sub-row'));
+        wrap.append(labeledRow('Helg: legge seg', timeField(group.weekendSleepTime || '23:30', changed((v) => { group.weekendSleepTime = v; })), 'sub-row'));
+        wrap.append(h('p', { class: 'hint sub-row', text: 'I helgen brukes disse tidene i stedet for sola og tidene over. Søndag kveld følger hverdagsplanen.' }));
       }
 
-      // Center "trash" drop zone — drag a point in near the middle of the
-      // clock and release it there to delete it, instead of only using the
-      // "Slett punkt" button in the editor panel.
-      const DELETE_RADIUS = 30;
-      const trashGroup = document.createElementNS(svgNS, 'g');
-      trashGroup.style.opacity = '0';
-      trashGroup.style.transition = 'opacity .12s, transform .12s';
-      trashGroup.style.transformOrigin = cx + 'px ' + cy + 'px';
-      trashGroup.style.pointerEvents = 'none';
+      const trans = h('input', { type: 'number', min: '5', max: '240' });
+      trans.value = group.transitionMinutes;
+      trans.addEventListener('change', changed(() => { group.transitionMinutes = Number(trans.value); }));
+      wrap.append(labeledRow('Overgang (minutter)', trans));
 
-      const trashBg = document.createElementNS(svgNS, 'circle');
-      trashBg.setAttribute('cx', cx);
-      trashBg.setAttribute('cy', cy);
-      trashBg.setAttribute('r', DELETE_RADIUS);
-      trashBg.style.fill = 'var(--trash-bg)';
-      trashBg.setAttribute('stroke', '#e74c3c');
-      trashBg.setAttribute('stroke-width', '2');
-      trashGroup.appendChild(trashBg);
+      wrap.append(percentRow('Varme om natta', group.warmValue, 'temp-slider', changed((v) => { group.warmValue = v; })));
+      wrap.append(percentRow('Varme midt på dagen', group.coolValue, 'temp-slider', changed((v) => { group.coolValue = v; })));
 
-      const trashIconStroke = { stroke: '#e74c3c', 'stroke-width': '2', 'stroke-linecap': 'round', fill: 'none' };
-      function trashIconLine(x1, y1, x2, y2) {
-        const l = document.createElementNS(svgNS, 'line');
-        l.setAttribute('x1', cx + x1);
-        l.setAttribute('y1', cy + y1);
-        l.setAttribute('x2', cx + x2);
-        l.setAttribute('y2', cy + y2);
-        Object.entries(trashIconStroke).forEach(([k, v]) => l.setAttribute(k, v));
-        trashGroup.appendChild(l);
+      wrap.append(labeledRow('Juster også lysstyrke', switchButton(!!group.adjustBrightness, 'Juster også lysstyrke', (on) => {
+        group.adjustBrightness = on;
+        render();
+      })));
+      if (group.adjustBrightness) {
+        wrap.append(percentRow('Lysstyrke om natta', group.nightDim, '', changed((v) => { group.nightDim = v; })));
+        wrap.append(percentRow('Lysstyrke midt på dagen', group.dayDim, '', changed((v) => { group.dayDim = v; })));
       }
-      trashIconLine(-8, -7, 8, -7); // lid
-      trashIconLine(-3.5, -10, -3.5, -7); // handle
-      trashIconLine(3.5, -10, 3.5, -7); // handle
-      const trashBody = document.createElementNS(svgNS, 'path');
-      trashBody.setAttribute('d', 'M ' + (cx - 7) + ',' + (cy - 5)
-        + ' L ' + (cx - 5.5) + ',' + (cy + 9)
-        + ' a 2 2 0 0 0 2 1.8 h 5 a 2 2 0 0 0 2 -1.8'
-        + ' L ' + (cx + 7) + ',' + (cy - 5));
-      Object.entries(trashIconStroke).forEach(([k, v]) => trashBody.setAttribute(k, v));
-      trashGroup.appendChild(trashBody);
-      trashIconLine(-2.5, -3, -2, 7);
-      trashIconLine(2.5, -3, 2, 7);
+      return wrap;
+    }
 
-      svg.appendChild(trashGroup);
+    function buildCommonControls(group) {
+      const wrap = h('div', { class: 'stack' });
+      wrap.append(labeledRow('Ikke rør lys som er slått av', switchButton(group.skipOffLights !== false, 'Ikke rør lys som er slått av', (on) => {
+        group.skipOffLights = on;
+        updateSaveBar();
+      })));
 
-      let selectedIndex = -1;
-      const editorHolder = document.createElement('div');
-
-      function renderEditor() {
-        editorHolder.innerHTML = '';
-        if (selectedIndex < 0 || !group.keyframes[selectedIndex]) return;
-        const kf = group.keyframes[selectedIndex];
-
-        const panel = document.createElement('div');
-        panel.className = 'editor-panel';
-
-        const title = document.createElement('div');
-        title.innerHTML = '<b>Sjekkpunkt</b>';
-        panel.appendChild(title);
-
-        const timeRow = document.createElement('div');
-        timeRow.className = 'row';
-        const timeLabel = document.createElement('label');
-        timeLabel.textContent = 'Klokkeslett';
-        const timeInput = document.createElement('input');
-        timeInput.type = 'time';
-        timeInput.value = kf.time;
-        timeInput.addEventListener('change', () => {
-          kf.time = timeInput.value;
-          redraw();
-        });
-        timeRow.appendChild(timeLabel);
-        timeRow.appendChild(timeInput);
-        panel.appendChild(timeRow);
-
-        const tempRow = document.createElement('div');
-        tempRow.className = 'row';
-        tempRow.style.flexDirection = 'column';
-        tempRow.style.alignItems = 'stretch';
-        const tempLabel = document.createElement('label');
-        tempLabel.textContent = 'Fargetemperatur (varme): ' + Math.round(kf.temp * 100) + '%';
-        const tempInput = document.createElement('input');
-        tempInput.type = 'range';
-        tempInput.className = 'temp-slider';
-        tempInput.min = '0';
-        tempInput.max = '1';
-        tempInput.step = '0.05';
-        tempInput.value = kf.temp;
-        tempInput.addEventListener('input', () => {
-          kf.temp = Number(tempInput.value);
-          tempLabel.textContent = 'Fargetemperatur (varme): ' + Math.round(kf.temp * 100) + '%';
-          redraw();
-        });
-        makePercentLabelEditable(tempLabel, 'Fargetemperatur (varme): ', () => kf.temp, (v) => { kf.temp = v; redraw(); });
-        tempRow.appendChild(tempLabel);
-        tempRow.appendChild(tempInput);
-        panel.appendChild(tempRow);
-
-        const dimRow = document.createElement('div');
-        dimRow.className = 'row';
-        dimRow.style.flexDirection = 'column';
-        dimRow.style.alignItems = 'stretch';
-        const dimLabel = document.createElement('label');
-        dimLabel.textContent = 'Lysstyrke: ' + Math.round(kf.dim * 100) + '%';
-        const dimInput = document.createElement('input');
-        dimInput.type = 'range';
-        dimInput.min = '0';
-        dimInput.max = '1';
-        dimInput.step = '0.05';
-        dimInput.value = kf.dim;
-        dimInput.addEventListener('input', () => {
-          kf.dim = Number(dimInput.value);
-          dimLabel.textContent = 'Lysstyrke: ' + Math.round(kf.dim * 100) + '%';
-          redraw();
-        });
-        makePercentLabelEditable(dimLabel, 'Lysstyrke: ', () => kf.dim, (v) => { kf.dim = v; redraw(); });
-        dimRow.appendChild(dimLabel);
-        dimRow.appendChild(dimInput);
-        panel.appendChild(dimRow);
-
-        const delBtn = document.createElement('button');
-        delBtn.textContent = 'Slett punkt';
-        delBtn.style.marginTop = '8px';
-        delBtn.addEventListener('click', () => {
-          group.keyframes.splice(selectedIndex, 1);
-          selectedIndex = -1;
-          redraw();
-        });
-        panel.appendChild(delBtn);
-
-        editorHolder.appendChild(panel);
-      }
-
-      function drawMarkers() {
-        Array.from(svg.querySelectorAll('.clock-marker')).forEach((el) => el.remove());
-        group.keyframes.forEach((kf, i) => {
-          const minutes = timeStrToMinutes(kf.time);
-          const pos = angleForMinutes(minutes, cx, cy, r);
-          const g = document.createElementNS(svgNS, 'g');
-          g.setAttribute('class', 'clock-marker' + (i === selectedIndex ? ' selected' : ''));
-
-          // Invisible, larger circle so the point is easy to grab even
-          // though the visible dot itself can be quite small.
-          const hitArea = document.createElementNS(svgNS, 'circle');
-          hitArea.setAttribute('cx', pos.x);
-          hitArea.setAttribute('cy', pos.y);
-          hitArea.setAttribute('r', 20);
-          hitArea.setAttribute('fill', 'transparent');
-          hitArea.setAttribute('stroke', 'none');
-          hitArea.style.cursor = 'grab';
-          g.appendChild(hitArea);
-
-          const dot = document.createElementNS(svgNS, 'circle');
-          dot.setAttribute('class', 'marker-dot');
-          dot.setAttribute('cx', pos.x);
-          dot.setAttribute('cy', pos.y);
-          dot.setAttribute('r', 6 + kf.dim * 6);
-          dot.setAttribute('fill', markerColor(kf.temp));
-          dot.style.stroke = 'var(--marker-stroke)';
-          dot.setAttribute('stroke-width', i === selectedIndex ? '2' : '1');
-          g.appendChild(dot);
-
-          const label = document.createElementNS(svgNS, 'text');
-          const lp = angleForMinutes(minutes, cx, cy, r - 30);
-          label.setAttribute('x', lp.x);
-          label.setAttribute('y', lp.y + 4);
-          label.setAttribute('text-anchor', 'middle');
-          label.setAttribute('font-size', '11');
-          label.style.fill = 'var(--clock-text)';
-          label.textContent = kf.time;
-          g.appendChild(label);
-
-          g.addEventListener('pointerdown', (evt) => {
-            evt.stopPropagation();
-            selectedIndex = i;
-            renderEditor();
-            drawMarkers();
-
-            trashGroup.style.opacity = '1';
-            let overTrash = false;
-
-            const onMove = (moveEvt) => {
-              const p = svgPointFromEvent(svg, moveEvt);
-              const distToCenter = Math.hypot(p.x - cx, p.y - cy);
-              overTrash = distToCenter < DELETE_RADIUS;
-
-              trashGroup.style.transform = overTrash ? 'scale(1.25)' : 'scale(1)';
-              trashBg.style.fill = overTrash ? '#e74c3c' : 'var(--trash-bg)';
-
-              if (!overTrash) {
-                const newMinutes = minutesForPoint(p.x, p.y, cx, cy);
-                kf.time = minutesToTimeStr(newMinutes);
-              }
-              // While hovering the trash zone, freeze the point at its last
-              // position on the ring (rather than following the pointer in)
-              // and just dim it, so it's clear letting go here deletes it.
-              drawMarkers();
-              const freshMarkers = svg.querySelectorAll('.clock-marker');
-              const freshDot = freshMarkers[i] && freshMarkers[i].querySelector('.marker-dot');
-              if (freshDot) freshDot.setAttribute('opacity', overTrash ? '0.35' : '1');
-            };
-            const onUp = () => {
-              window.removeEventListener('pointermove', onMove);
-              window.removeEventListener('pointerup', onUp);
-              trashGroup.style.opacity = '0';
-              trashGroup.style.transform = 'scale(1)';
-              trashBg.style.fill = 'var(--trash-bg)';
-
-              if (overTrash) {
-                group.keyframes.splice(i, 1);
-                selectedIndex = -1;
-              }
-              redraw();
-            };
-            window.addEventListener('pointermove', onMove);
-            window.addEventListener('pointerup', onUp);
-          });
-
-          svg.appendChild(g);
-        });
-      }
-
-      svg.addEventListener('pointerdown', (evt) => {
-        if (evt.target !== svg && evt.target !== ring) return; // let marker handle its own event
-        const p = svgPointFromEvent(svg, evt);
-        const dist = Math.hypot(p.x - cx, p.y - cy);
-        if (dist < r - 25 || dist > r + 25) return; // only add when clicking near the ring
-        const minutes = minutesForPoint(p.x, p.y, cx, cy);
-        group.keyframes.push({ time: minutesToTimeStr(minutes), temp: 0.7, dim: 0.7 });
-        selectedIndex = group.keyframes.length - 1;
-        redraw();
+      const fade = h('input', { type: 'number', min: '0', max: '5', step: '1' });
+      fade.value = group.fadeSeconds != null ? group.fadeSeconds : 2;
+      fade.addEventListener('change', () => {
+        let v = Number(fade.value);
+        if (Number.isNaN(v)) v = 2;
+        v = clamp(Math.round(v), 0, 5);
+        fade.value = v;
+        group.fadeSeconds = v;
+        updateSaveBar();
       });
-
-      function redraw() {
-        drawMarkers();
-        renderEditor();
-        renderKfList();
-      }
-
-      const kfList = document.createElement('div');
-      kfList.className = 'kf-list';
-      function renderKfList() {
-        kfList.innerHTML = '';
-        if (group.keyframes.length === 0) {
-          kfList.textContent = 'Ingen sjekkpunkter ennå. Klikk på ringen for å legge til ett.';
-          return;
-        }
-        const sorted = [...group.keyframes].sort((a, b) => timeStrToMinutes(a.time) - timeStrToMinutes(b.time));
-        sorted.forEach((kf) => {
-          const row = document.createElement('div');
-          const idx = group.keyframes.indexOf(kf);
-          row.className = 'kf-list-row' + (idx === selectedIndex ? ' selected' : '');
-          row.textContent = kf.time + ' — varme ' + Math.round(kf.temp * 100) + '%, lys ' + Math.round(kf.dim * 100) + '%';
-          row.style.cursor = 'pointer';
-          row.title = 'Klikk for å redigere dette punktet';
-          if (idx === selectedIndex) {
-            row.style.fontWeight = 'bold';
-            row.style.background = 'var(--selected)';
-          }
-          row.addEventListener('click', () => {
-            selectedIndex = idx;
-            redraw();
-          });
-          kfList.appendChild(row);
-        });
-      }
-
-      wrap.appendChild(svg);
-      const rightCol = document.createElement('div');
-      rightCol.style.minWidth = '220px';
-      rightCol.appendChild(editorHolder);
-      const hint = document.createElement('div');
-      hint.className = 'kf-hint';
-      hint.textContent = 'Klikk på ringen for å legge til et sjekkpunkt. Dra et punkt for å endre tidspunkt, eller klikk på det (eller på raden i listen under) for å redigere det. Dra et punkt inn mot søppeldunken i midten og slipp for å slette det. Klikk på prosenttallet for å skrive inn en eksakt verdi.';
-      rightCol.appendChild(hint);
-      rightCol.appendChild(kfList);
-      wrap.appendChild(rightCol);
-
-      container.appendChild(wrap);
-      drawMarkers();
-      renderKfList();
+      wrap.append(labeledRow('Myk overgang (sekunder, 0–5)', fade));
+      wrap.append(h('p', { class: 'hint', text: 'Lysene glir over til nye verdier i stedet for å hoppe. Ikke alle lys støtter det. Når et lys slås på, får det riktige verdier med en gang.' }));
+      return wrap;
     }
 
     function renderDeviceList(container, group) {
-      container.innerHTML = '';
       if (devices.length === 0) {
-        container.textContent = 'Fant ingen lys som kan styres (verken fargetemperatur eller lysstyrke).';
+        container.append(h('p', { class: 'hint', text: 'Fant ingen lys som kan styres (verken fargetemperatur eller lysstyrke).' }));
         return;
       }
-
-      const hasDimOnly = devices.some((d) => !d.hasTemp);
-      if (hasDimOnly && group.mode !== 'keyframes' && !group.adjustBrightness) {
-        const hint = document.createElement('div');
-        hint.textContent = '⚠ Lys uten fargetemperatur (kun lysstyrke) får ingen justering i "Følg sol"-modus før du skrur på "Juster også lysstyrke" under.';
-        hint.style.fontSize = '12px';
-        hint.style.color = 'var(--warn)';
-        hint.style.margin = '4px 0 8px';
-        container.appendChild(hint);
+      if (devices.some((d) => !d.hasTemp) && group.mode !== 'keyframes' && !group.adjustBrightness) {
+        container.append(h('p', { class: 'hint', style: 'color: var(--warn)', text: 'Lys uten fargetemperatur får ingen justering med «Følg sola» før du skrur på «Juster også lysstyrke».' }));
       }
-
       devices.forEach((d) => {
-        const row = document.createElement('div');
-        row.className = 'device';
-        const cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.checked = group.deviceIds.includes(d.id);
+        const cb = h('input', { type: 'checkbox', id: 'dev-' + d.id });
+        cb.checked = (group.deviceIds || []).includes(d.id);
         cb.addEventListener('change', () => {
           if (cb.checked) {
             if (!group.deviceIds.includes(d.id)) group.deviceIds.push(d.id);
           } else {
             group.deviceIds = group.deviceIds.filter((id) => id !== d.id);
           }
+          updateSaveBar();
         });
-        const label = document.createElement('span');
-        label.textContent = d.name + (d.zone ? ' (' + d.zone + ')' : '');
-        row.appendChild(cb);
-        row.appendChild(label);
-
-        if (!d.hasTemp) {
-          const dimOnlyTag = document.createElement('span');
-          dimOnlyTag.textContent = '(kun lysstyrke)';
-          dimOnlyTag.className = 'tag';
-          row.appendChild(dimOnlyTag);
-        }
-
-        if (d.locked) {
-          const lockTag = document.createElement('span');
-          lockTag.textContent = d.lockType === 'untilOff' ? '⏸ pause til av' : '🔒 låst';
-          lockTag.className = 'tag locked';
-          row.appendChild(lockTag);
-
-          const unlockBtn = document.createElement('button');
-          unlockBtn.textContent = 'Lås opp';
-          unlockBtn.style.marginLeft = '6px';
-          unlockBtn.style.fontSize = '12px';
-          unlockBtn.addEventListener('click', () => {
-            HomeyRef.api('POST', '/resume', { deviceId: d.id }).then(() => {
+        const row = h('div', { class: 'device' }, [
+          cb,
+          h('label', { for: 'dev-' + d.id, text: d.name + (d.zone ? ' (' + d.zone + ')' : '') }),
+          !d.hasTemp ? h('span', { class: 'tag', text: 'kun lysstyrke' }) : null,
+        ]);
+        const l = lightStatus(d.id);
+        const lock = l ? l.lock : (d.locked ? d.lockType || 'manual' : null);
+        if (lock) {
+          row.append(h('span', { class: 'tag locked', text: lock === 'untilOff' ? '⏸ pause til av' : '🔒 låst' }));
+          row.append(h('button', {
+            type: 'button',
+            class: 'link',
+            text: 'Lås opp',
+            onclick: () => HomeyRef.api('POST', '/resume', { deviceId: d.id }).then(() => {
               d.locked = false;
-              renderGroups();
-            }).catch((err) => alert('Kunne ikke låse opp: ' + err.message));
-          });
-          row.appendChild(unlockBtn);
+              return loadStatus();
+            }).then(render).catch((err) => updateSaveBar('Kunne ikke låse opp: ' + err.message, 'dirty')),
+          }));
         }
-
-        container.appendChild(row);
+        container.append(row);
       });
-    }
-
-    function renderGroups() {
-      const container = document.getElementById('groups');
-      container.innerHTML = '';
-
-      config.groups.forEach((group) => {
-        const card = document.createElement('div');
-        card.className = 'group-card';
-
-        // Header
-        const header = document.createElement('div');
-        header.className = 'group-header';
-
-        const enabledCb = document.createElement('input');
-        enabledCb.type = 'checkbox';
-        enabledCb.checked = group.enabled !== false;
-        enabledCb.title = 'Aktiv';
-        enabledCb.addEventListener('change', () => { group.enabled = enabledCb.checked; });
-
-        const nameInput = document.createElement('input');
-        nameInput.type = 'text';
-        nameInput.value = group.name;
-        nameInput.addEventListener('input', () => { group.name = nameInput.value; });
-
-        const modeToggle = document.createElement('div');
-        modeToggle.className = 'mode-toggle';
-        const sunBtn = document.createElement('button');
-        sunBtn.textContent = 'Følg sol';
-        const kfBtn = document.createElement('button');
-        kfBtn.textContent = 'Manuelle punkter';
-        function updateModeButtons() {
-          sunBtn.className = group.mode === 'sun' ? 'active' : '';
-          kfBtn.className = group.mode === 'keyframes' ? 'active' : '';
-        }
-        updateModeButtons();
-        sunBtn.addEventListener('click', () => { group.mode = 'sun'; renderGroups(); });
-        kfBtn.addEventListener('click', () => { group.mode = 'keyframes'; renderGroups(); });
-        modeToggle.appendChild(sunBtn);
-        modeToggle.appendChild(kfBtn);
-
-        const delBtn = document.createElement('button');
-        delBtn.className = 'delete-group';
-        delBtn.textContent = '✕';
-        delBtn.title = 'Slett gruppe';
-        delBtn.addEventListener('click', () => {
-          config.groups = config.groups.filter((g) => g.id !== group.id);
-          renderGroups();
-        });
-
-        nameInput.placeholder = 'Navn på gruppen';
-        nameInput.className = 'group-name';
-
-        // Row 1: on/off, full-width name, delete. Row 2: mode toggle.
-        header.appendChild(enabledCb);
-        header.appendChild(nameInput);
-        header.appendChild(delBtn);
-        card.appendChild(header);
-        card.appendChild(modeToggle);
-
-        // Devices
-        const devicesTitle = document.createElement('h3');
-        devicesTitle.textContent = 'Lys i denne gruppen';
-        devicesTitle.style.fontSize = '13px';
-        card.appendChild(devicesTitle);
-        const deviceListEl = document.createElement('div');
-        deviceListEl.className = 'devices-list';
-        renderDeviceList(deviceListEl, group);
-        card.appendChild(deviceListEl);
-
-        card.appendChild(buildSimulateRow(group));
-
-        if (group.mode === 'keyframes') {
-          card.appendChild(buildKeyframeControls(group));
-        } else {
-          card.appendChild(buildSunControls(group));
-        }
-        card.appendChild(buildCommonControls(group));
-
-        container.appendChild(card);
-      });
-    }
-
-    function buildKeyframeControls(group) {
-      const wrap = document.createElement('div');
-
-      wrap.appendChild(labeledRow(WEEKEND_LABEL, checkbox(!!group.weekendEnabled, (on) => {
-        group.weekendEnabled = on;
-        if (!on) clockTab[group.id] = 'weekday';
-        renderGroups();
-      })));
-
-      const tab = group.weekendEnabled ? (clockTab[group.id] || 'weekday') : 'weekday';
-      if (group.weekendEnabled) {
-        const tabs = document.createElement('div');
-        tabs.className = 'mode-toggle small-toggle';
-        [['weekday', 'Hverdag'], ['weekend', 'Helg']].forEach(([id, text]) => {
-          const b = document.createElement('button');
-          b.textContent = text;
-          b.className = tab === id ? 'active' : '';
-          b.addEventListener('click', () => { clockTab[group.id] = id; renderGroups(); });
-          tabs.appendChild(b);
-        });
-        wrap.appendChild(tabs);
-      }
-
-      const clockContainer = document.createElement('div');
-      if (tab === 'weekend') {
-        if (!Array.isArray(group.weekendKeyframes)) group.weekendKeyframes = [];
-        if (group.weekendKeyframes.length === 0) {
-          const note = document.createElement('div');
-          note.className = 'kf-hint';
-          note.textContent = 'Ingen helgepunkter ennå, så hverdagspunktene brukes i helgen. Klikk på ringen for å lage egne, eller start med en kopi: ';
-          const copyBtn = document.createElement('button');
-          copyBtn.textContent = 'Kopier hverdagspunktene';
-          copyBtn.addEventListener('click', () => {
-            group.weekendKeyframes = (group.keyframes || []).map((k) => Object.assign({}, k));
-            renderGroups();
-          });
-          note.appendChild(copyBtn);
-          wrap.appendChild(note);
-        }
-        // renderClock edits the list in place, so hand it the weekend list
-        renderClock(clockContainer, { keyframes: group.weekendKeyframes });
-      } else {
-        renderClock(clockContainer, group);
-      }
-      wrap.appendChild(clockContainer);
-      return wrap;
-    }
-
-    function buildCommonControls(group) {
-      const wrap = document.createElement('div');
-
-      wrap.appendChild(labeledRow('Ikke rør lys som er slått av', checkbox(group.skipOffLights !== false, (on) => {
-        group.skipOffLights = on;
-      })));
-
-      const fade = document.createElement('input');
-      fade.type = 'number';
-      fade.min = '0';
-      fade.max = '5';
-      fade.step = '1';
-      fade.value = group.fadeSeconds != null ? group.fadeSeconds : 2;
-      fade.addEventListener('change', () => {
-        let v = Number(fade.value);
-        if (Number.isNaN(v)) v = 2;
-        v = Math.max(0, Math.min(5, Math.round(v)));
-        fade.value = v;
-        group.fadeSeconds = v;
-      });
-      wrap.appendChild(labeledRow('Myk overgang ved endring (sekunder, 0–5)', fade));
-      const fadeHint = document.createElement('div');
-      fadeHint.className = 'kf-hint';
-      fadeHint.textContent = 'Lysene glir over til nye verdier i stedet for å hoppe. Ikke alle lys støtter det. Når et lys slås på, får det riktige verdier med en gang.';
-      wrap.appendChild(fadeHint);
-
-      return wrap;
     }
 
     function buildSimulateRow(group) {
-      const row = document.createElement('div');
-      row.className = 'simulate-row';
-
-      const btn = document.createElement('button');
-      btn.textContent = '▶ Simuler døgnet (~1 min)';
-      btn.title = 'Kjører gjennom hele døgnet på ca. 1 minutt og skriver de faktiske verdiene til lysene i denne gruppen, slik at du kan se effekten med det samme.';
-
-      const stopBtn = document.createElement('button');
-      stopBtn.textContent = '⏹ Stopp';
-      stopBtn.disabled = true;
-
-      const status = document.createElement('span');
-      status.className = 'simulate-status';
-
+      const btn = h('button', { type: 'button', text: '▶ Simuler døgnet (~1 min)', title: 'Kjører gjennom hele døgnet på ca. 1 minutt på lysene i rommet, så du ser effekten med det samme.' });
+      const stopBtn = h('button', { type: 'button', text: '■ Stopp', disabled: true });
+      const msg = h('span', { class: 'hint' });
       let pollTimer = null;
 
-      function stopPolling() {
-        if (pollTimer) {
-          clearInterval(pollTimer);
-          pollTimer = null;
-        }
-      }
-
-      function setRunningUi(running) {
-        btn.disabled = running;
-        stopBtn.disabled = !running;
-      }
-
+      const setRunning = (running) => { btn.disabled = running; stopBtn.disabled = !running; };
       function poll() {
-        HomeyRef.api('GET', '/simulate-status').then((s) => {
-          if (!s || !s.running) {
-            stopPolling();
-            setRunningUi(false);
-            status.textContent = s && s.stoppedReason
-              ? s.stoppedReason + ' ✓'
-              : 'Ferdig ✓ (tilbake til vanlig tidsplan)';
-            setTimeout(() => { status.textContent = ''; }, 5000);
+        HomeyRef.api('GET', '/simulate-status').then((st) => {
+          if (!st || !st.running) {
+            clearInterval(pollTimer);
+            pollTimer = null;
+            setRunning(false);
+            msg.textContent = st && st.stoppedReason ? st.stoppedReason + ' ✓' : 'Ferdig ✓ (tilbake til vanlig plan)';
+            setTimeout(() => { msg.textContent = ''; }, 5000);
             return;
           }
-          const pct = s.totalSteps ? Math.round((s.stepIndex / s.totalSteps) * 100) : 0;
-          status.textContent = 'Simulerer... kl. ' + (s.simTime || '--:--') + ' (' + pct + '%) — se lysene nå';
-        }).catch(() => {
-          // transient error while polling — ignore, next poll will retry
-        });
+          const p = st.totalSteps ? Math.round((st.stepIndex / st.totalSteps) * 100) : 0;
+          msg.textContent = 'Simulerer kl. ' + (st.simTime || '--:--') + ' (' + p + ' %)';
+        }).catch(() => { /* the next poll retries */ });
       }
-
       btn.addEventListener('click', () => {
         if (!group.deviceIds || group.deviceIds.length === 0) {
-          alert('Legg til minst ett lys i gruppen først.');
+          msg.textContent = 'Velg minst ett lys i rommet først.';
           return;
         }
-        setRunningUi(true);
-        status.textContent = 'Lagrer gjeldende oppsett...';
-
-        // Save the full config first, so the simulation on the Homey uses
-        // exactly what's shown here right now (including unsaved drags).
-        config.enabled = document.getElementById('globalEnabled').checked;
+        setRunning(true);
+        msg.textContent = 'Lagrer og starter...';
+        // Save first, so the simulation uses exactly what is shown here
         HomeyRef.api('POST', '/config', config).then(() => {
-          status.textContent = 'Starter simulering...';
+          savedJson = JSON.stringify(config);
+          updateSaveBar();
           return HomeyRef.api('POST', '/simulate', { groupId: group.id });
         }).then(() => {
           poll();
           pollTimer = setInterval(poll, 1000);
         }).catch((err) => {
-          status.textContent = '';
-          setRunningUi(false);
-          alert('Kunne ikke starte simulering: ' + (err && err.message ? err.message : err));
+          setRunning(false);
+          msg.textContent = 'Kunne ikke starte: ' + (err && err.message ? err.message : err);
         });
       });
-
       stopBtn.addEventListener('click', () => {
         stopBtn.disabled = true;
-        status.textContent = 'Stopper...';
+        msg.textContent = 'Stopper...';
         HomeyRef.api('POST', '/simulate-stop').catch(() => {});
-        // polling will pick up the stopped state and update the UI
       });
-
-      row.appendChild(btn);
-      row.appendChild(stopBtn);
-      row.appendChild(status);
-      return row;
+      return h('div', { class: 'simulate-row' }, [btn, stopBtn, msg]);
     }
 
-    function buildSunControls(group) {
-      const wrap = document.createElement('div');
+    // --- top level ---
 
-      const row = labeledRow;
-
-      const useSun = document.createElement('input');
-      useSun.type = 'checkbox';
-      useSun.checked = group.useSunTimes !== false;
-      useSun.addEventListener('change', () => { group.useSunTimes = useSun.checked; });
-      wrap.appendChild(row('Bruk soloppgang/solnedgang automatisk', useSun));
-
-      const wake = document.createElement('input');
-      wake.type = 'time';
-      wake.value = group.wakeTime;
-      wake.addEventListener('change', () => { group.wakeTime = wake.value; });
-      wrap.appendChild(row('Fast "våkne"-tid (hvis soltid er av)', wake));
-
-      const sleep = document.createElement('input');
-      sleep.type = 'time';
-      sleep.value = group.sleepTime;
-      sleep.addEventListener('change', () => { group.sleepTime = sleep.value; });
-      wrap.appendChild(row('Fast "legge seg"-tid (hvis soltid er av)', sleep));
-
-      wrap.appendChild(row(WEEKEND_LABEL, checkbox(!!group.weekendEnabled, (on) => {
-        group.weekendEnabled = on;
-        renderGroups();
-      })));
-      if (group.weekendEnabled) {
-        const wkWake = row('Helg: "våkne"-tid', timeInput(group.weekendWakeTime || '08:30', (v) => { group.weekendWakeTime = v; }));
-        const wkSleep = row('Helg: "legge seg"-tid', timeInput(group.weekendSleepTime || '23:30', (v) => { group.weekendSleepTime = v; }));
-        wkWake.classList.add('sub-row');
-        wkSleep.classList.add('sub-row');
-        wrap.appendChild(wkWake);
-        wrap.appendChild(wkSleep);
-        const note = document.createElement('div');
-        note.className = 'kf-hint sub-row';
-        note.textContent = 'I helgen brukes disse tidene i stedet for soloppgang/solnedgang og de faste tidene over. Søndag kveld følger hverdagsplanen.';
-        wrap.appendChild(note);
+    function render() {
+      const root = document.getElementById('app');
+      root.innerHTML = '';
+      root.className = 'stack';
+      refreshDial = null;
+      const group = view.name === 'room' && config.groups.find((g) => g.id === view.groupId);
+      if (group) renderRoom(root, group);
+      else {
+        view = { name: 'overview' };
+        renderOverview(root);
       }
-
-      const trans = document.createElement('input');
-      trans.type = 'number';
-      trans.min = '5';
-      trans.max = '240';
-      trans.value = group.transitionMinutes;
-      trans.addEventListener('change', () => { group.transitionMinutes = Number(trans.value); });
-      wrap.appendChild(row('Overgangstid (minutter)', trans));
-
-      const warmLabel = document.createElement('span');
-      const warm = document.createElement('input');
-      warm.type = 'range'; warm.className = 'temp-slider'; warm.min = '0'; warm.max = '1'; warm.step = '0.05';
-      warm.value = group.warmValue;
-      warmLabel.textContent = warm.value;
-      warm.addEventListener('input', () => { group.warmValue = Number(warm.value); warmLabel.textContent = warm.value; });
-      const warmRow = row('Varmeverdi (natt)', warm);
-      warmRow.appendChild(warmLabel);
-      wrap.appendChild(warmRow);
-
-      const coolLabel = document.createElement('span');
-      const cool = document.createElement('input');
-      cool.type = 'range'; cool.className = 'temp-slider'; cool.min = '0'; cool.max = '1'; cool.step = '0.05';
-      cool.value = group.coolValue;
-      coolLabel.textContent = cool.value;
-      cool.addEventListener('input', () => { group.coolValue = Number(cool.value); coolLabel.textContent = cool.value; });
-      const coolRow = row('Kaldeste verdi (midt på dagen)', cool);
-      coolRow.appendChild(coolLabel);
-      wrap.appendChild(coolRow);
-
-      const adjustBrightness = document.createElement('input');
-      adjustBrightness.type = 'checkbox';
-      adjustBrightness.checked = !!group.adjustBrightness;
-      adjustBrightness.addEventListener('change', () => { group.adjustBrightness = adjustBrightness.checked; });
-      wrap.appendChild(row('Juster også lysstyrke', adjustBrightness));
-
-      const nightDimLabel = document.createElement('span');
-      const nightDim = document.createElement('input');
-      nightDim.type = 'range'; nightDim.min = '0'; nightDim.max = '1'; nightDim.step = '0.05';
-      nightDim.value = group.nightDim;
-      nightDimLabel.textContent = nightDim.value;
-      nightDim.addEventListener('input', () => { group.nightDim = Number(nightDim.value); nightDimLabel.textContent = nightDim.value; });
-      const nightDimRow = row('Lysstyrke natt', nightDim);
-      nightDimRow.appendChild(nightDimLabel);
-      wrap.appendChild(nightDimRow);
-
-      const dayDimLabel = document.createElement('span');
-      const dayDim = document.createElement('input');
-      dayDim.type = 'range'; dayDim.min = '0'; dayDim.max = '1'; dayDim.step = '0.05';
-      dayDim.value = group.dayDim;
-      dayDimLabel.textContent = dayDim.value;
-      dayDim.addEventListener('input', () => { group.dayDim = Number(dayDim.value); dayDimLabel.textContent = dayDim.value; });
-      const dayDimRow = row('Lysstyrke midt på dagen', dayDim);
-      dayDimRow.appendChild(dayDimLabel);
-      wrap.appendChild(dayDimRow);
-
-      return wrap;
-    }
-
-    function pct(v) {
-      return v == null ? '–' : Math.round(v * 100) + ' %';
-    }
-
-    function clockTime(ts) {
-      return new Date(ts).toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' });
-    }
-
-    function renderStatus(st) {
-      const list = document.getElementById('statusList');
-      list.innerHTML = '';
-      if (!st.enabled) {
-        const off = document.createElement('div');
-        off.className = 'tag warn';
-        off.style.marginLeft = '0';
-        off.textContent = 'Døgnrytmestyring er skrudd av for hele appen.';
-        list.appendChild(off);
-      }
-      if (!st.groups || st.groups.length === 0) {
-        list.appendChild(document.createTextNode('Ingen grupper ennå.'));
-        return;
-      }
-      st.groups.forEach((g) => {
-        const head = document.createElement('div');
-        head.className = 'status-group';
-        const b = document.createElement('b');
-        b.textContent = g.name || 'Uten navn';
-        head.appendChild(b);
-        const now = document.createElement('span');
-        now.className = 'now';
-        now.textContent = g.enabled
-          ? ' — nå: varme ' + pct(g.temp) + (g.dim != null ? ', lysstyrke ' + pct(g.dim) : '') + (g.weekend ? ' (helgeplan)' : '')
-          : ' — skrudd av';
-        head.appendChild(now);
-        list.appendChild(head);
-
-        if (!g.lights.length) {
-          const none = document.createElement('div');
-          none.className = 'status-light';
-          none.textContent = 'Ingen lys i gruppen.';
-          list.appendChild(none);
-        }
-        g.lights.forEach((l) => {
-          const row = document.createElement('div');
-          row.className = 'status-light';
-          const dot = document.createElement('span');
-          dot.className = 'dot' + (l.on ? ' on' : '');
-          dot.title = l.on == null ? 'Ukjent' : (l.on ? 'På' : 'Av');
-          row.appendChild(dot);
-          const name = document.createElement('span');
-          name.className = 'lname';
-          name.textContent = l.name;
-          row.appendChild(name);
-          if (l.on) {
-            const vals = document.createElement('span');
-            vals.className = 'detail';
-            vals.textContent = (l.temp != null ? 'varme ' + pct(l.temp) + ', ' : '') + 'lysstyrke ' + pct(l.dim);
-            row.appendChild(vals);
-          }
-          if (l.lock) {
-            const tag = document.createElement('span');
-            tag.className = 'tag locked';
-            tag.textContent = l.lock === 'untilOff' ? '⏸ pause til av' : '🔒 låst';
-            row.appendChild(tag);
-          }
-          const detail = document.createElement('span');
-          const s = l.status;
-          detail.className = 'detail' + (s && s.check === 'error' ? ' error' : '');
-          let text;
-          if (l.lock) text = 'Styres ikke av appen nå';
-          else if (s) text = s.text;
-          else text = 'Ikke sjekket ennå';
-          if (s && s.applied) text += ' · sist satt kl. ' + clockTime(s.applied.at);
-          detail.textContent = '— ' + text;
-          row.appendChild(detail);
-          list.appendChild(row);
-        });
-      });
-    }
-
-    function loadStatus() {
-      if (!HomeyRef) return;
-      HomeyRef.api('GET', '/status').then(renderStatus).catch((err) => {
-        document.getElementById('statusList').textContent =
-          'Kunne ikke hente status: ' + (err && err.message ? err.message : err);
-      });
+      updateSaveBar();
     }
 
     function onHomeyReady(Homey) {
       HomeyRef = Homey;
       Homey.ready();
 
-      document.getElementById('groups').textContent = 'Laster...';
+      if (!C) {
+        document.getElementById('app').textContent = 'Kunne ikke laste circadian.js. Prøv å installere appen på nytt.';
+        return;
+      }
 
       Promise.all([
         Homey.api('GET', '/devices'),
         Homey.api('GET', '/config'),
-      ]).then(([deviceList, cfg]) => {
+        Homey.api('GET', '/status').catch(() => null),
+      ]).then(([deviceList, cfg, st]) => {
         devices = deviceList || [];
         config = Object.assign({ enabled: true, groups: [] }, cfg || {});
         if (!Array.isArray(config.groups)) config.groups = [];
-        document.getElementById('globalEnabled').checked = config.enabled !== false;
-        renderGroups();
+        savedJson = JSON.stringify(config);
+        status = st;
+        render();
       }).catch((err) => {
-        document.getElementById('groups').textContent =
-          'Kunne ikke laste: ' + (err && err.message ? err.message : JSON.stringify(err));
+        document.getElementById('app').textContent = 'Kunne ikke laste: ' + (err && err.message ? err.message : JSON.stringify(err));
       });
 
-      loadStatus();
-      setInterval(() => {
-        if (!document.hidden && document.getElementById('statusBox').open) loadStatus();
-      }, 15000);
-      document.getElementById('refreshStatus').addEventListener('click', loadStatus);
+      // Any edit on the page may have changed the config
+      document.addEventListener('input', () => updateSaveBar());
+      document.addEventListener('change', () => updateSaveBar());
 
-      document.getElementById('addGroup').addEventListener('click', () => {
-        config.groups.push(defaultGroup());
-        renderGroups();
-      });
-
-      document.getElementById('resumeAll').addEventListener('click', () => {
-        Homey.api('POST', '/resume-all').then(() => {
-          devices.forEach((d) => { d.locked = false; });
-          renderGroups();
-          const status = document.getElementById('status');
-          status.textContent = 'Alle lys låst opp ✓';
-          setTimeout(() => { status.textContent = ''; }, 2000);
-        }).catch((err) => alert('Kunne ikke låse opp: ' + err.message));
-      });
-
-      document.getElementById('save').addEventListener('click', () => {
-        config.enabled = document.getElementById('globalEnabled').checked;
-        Homey.api('POST', '/config', config).then(() => {
-          const status = document.getElementById('status');
-          status.textContent = 'Lagret ✓';
-          setTimeout(() => { status.textContent = ''; }, 2000);
-          loadStatus();
-        }).catch((err) => {
-          alert('Kunne ikke lagre: ' + err.message);
-        });
-      });
-
+      document.getElementById('save').addEventListener('click', save);
       document.getElementById('applyNow').addEventListener('click', () => {
-        const status = document.getElementById('status');
-        status.textContent = 'Oppdaterer...';
-        Homey.api('POST', '/apply').then(() => {
-          status.textContent = 'Oppdatert ✓';
-          setTimeout(() => { status.textContent = ''; }, 2000);
-          loadStatus();
-        }).catch((err) => {
-          alert('Kunne ikke oppdatere: ' + err.message);
-        });
+        updateSaveBar('Oppdaterer lysene...');
+        HomeyRef.api('POST', '/apply').then(() => {
+          updateSaveBar('Oppdatert ✓', 'ok');
+          setTimeout(() => updateSaveBar(), 2000);
+          return loadStatus();
+        }).catch((err) => updateSaveBar('Kunne ikke oppdatere: ' + err.message, 'dirty'));
       });
+
+      // Keep the overview (and the hand on the clock) current while open
+      setInterval(() => {
+        if (document.hidden) return;
+        if (view.name === 'overview') loadStatus();
+        else if (refreshDial) refreshDial();
+      }, 15000);
     }
   </script>
 </body>

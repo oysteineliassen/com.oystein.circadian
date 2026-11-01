@@ -19,11 +19,19 @@ skriv til ham på norsk. Han utvikler på Windows og har en Homey Pro (Early 202
 
 - `app.js`: all logikk. Tick hvert 2. minutt, gruppeverdier, skriving til lys,
   låser, simulering, Flow-kort.
-- `lib/circadian.js`: rene funksjoner på "minutter siden midnatt" (0–1439),
-  inkl. `groupValues()` (brukes av tick, Flow og simulering) og helgeregelen.
+- `settings/circadian.js`: rene funksjoner på "minutter siden midnatt"
+  (0–1439), inkl. `groupValues()` og helgeregelen. Brukes av appen (via
+  `lib/circadian.js`, som bare re-eksporterer) OG av innstillingssiden
+  (`window.Circadian`), så klokka viser nøyaktig det appen gjør. Ligger i
+  `settings/` fordi Homey bare serverer den mappa til siden. Hold den fri for
+  Node-ting (ingen `require`).
 - `test/run-tests.js`: tester. Ekskludert fra appen via `.homeyignore`.
 - `api.js`: tynne ruter for innstillingssiden.
 - `settings/index.html`: innstillingssiden (vanilla JS, ingen byggesteg).
+  To visninger: rom-oversikt (status fra `/status`) og rommets døgnklokke
+  (`buildDial`), som også er redigereren for egne punkter. Lagre-linja nederst
+  sammenligner `config` med sist lagrede versjon. Bryterne i oversikten
+  lagrer med en gang.
 - `app.json`: manifest, API-ruter og Flow-kort.
 
 ## Lærdommer (ikke gjør disse feilene på nytt)

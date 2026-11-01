@@ -292,6 +292,27 @@ test('alle Flow-kort og API-ruter i app.json finnes i koden', () => {
   });
 });
 
+test('innstillingssiden laster samme regnekode som appen', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'settings/index.html'), 'utf8');
+  assert.ok(html.includes('<script type="text/javascript" src="circadian.js"></script>'), 'index.html laster ikke circadian.js');
+  const vm = require('vm');
+  const window = {};
+  vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'settings/circadian.js'), 'utf8'), { window, Intl, Math, Date });
+  assert.ok(window.Circadian, 'circadian.js setter ikke window.Circadian i nettleseren');
+  assert.deepStrictEqual(Object.keys(window.Circadian).sort(), Object.keys(lib).sort());
+  const g = { mode: 'keyframes', keyframes: KEYFRAMES };
+  // Objects from the other context have another prototype, so compare values
+  assert.strictEqual(JSON.stringify(window.Circadian.groupValues(g, 300, {}, false)), JSON.stringify(lib.groupValues(g, 300, {}, false)));
+});
+
+test('status gir tidssone og soltider til klokka', async () => {
+  const d = makeDevice('a', { onoff: false, dim: 0.5, light_temperature: 0.5 });
+  const { app } = await startApp({ devices: [d], groups: [{ id: 'g1', name: 'Stue', mode: 'keyframes', keyframes: KEYFRAMES, deviceIds: ['a'] }] });
+  const st = await app.getStatus();
+  assert.strictEqual(st.timeZone, 'Europe/Oslo');
+  assert.deepStrictEqual(Object.keys(st.sun).sort(), ['sunriseMinutes', 'sunsetMinutes']);
+});
+
 test('syntaks i innstillingssiden', () => {
   const html = fs.readFileSync(path.join(ROOT, 'settings/index.html'), 'utf8');
   const scripts = [...html.matchAll(/<script type="text\/javascript">([\s\S]*?)<\/script>/g)].map((m) => m[1]);

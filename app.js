@@ -256,6 +256,10 @@ class CircadianApp extends Homey.App {
     return {
       enabled: this.config.enabled !== false,
       weekend: now.weekend,
+      // The settings page draws the schedule itself (settings/circadian.js),
+      // on the Homey's clock and with today's sun times from here.
+      timeZone: this.timeZone || null,
+      sun,
       groups: (this.config.groups || []).filter(Boolean).map((g) => {
         const v = groupValues(g, now.minutes, sun, now.weekend);
         return {
