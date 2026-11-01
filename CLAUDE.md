@@ -59,6 +59,10 @@ skriv til ham på norsk. Han utvikler på Windows og har en Homey Pro (Early 202
   tilstand med `getDevice({ id, $cache: false, $updateCache: false })`. Sier
   den av, hoppes lyset over og lytterne bygges på nytt
   (`_resetCapabilityListeners`).
+- **Slettede/omparede lys** blir liggende i `group.deviceIds` (ny paring gir
+  ny ID). `getDevice` kaster «Not Found»; `_markIfMissing` husker dem i
+  `_missing`, tick hopper over dem, og `/status` gir `missing: true`, så
+  innstillingssiden kan tilby å fjerne dem. Sjekkes på nytt ved lagring.
 - Låser: `true` = manuell (til opplåsing), `'untilOff'` = pause til lyset
   slås av.
 - `light_temperature`: 0 = kaldest, 1 = varmest. Sett `light_mode` til

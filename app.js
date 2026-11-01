@@ -69,6 +69,7 @@ class CircadianApp extends Homey.App {
     this._deviceNames = {};
     this._offAt = {}; // deviceId -> time we last saw the light go off
     this._turningOn = {}; // deviceId -> true while values are being set after a switch-on
+    this._missing = {}; // deviceId -> true for lights in a group that Homey no longer has
     this._status = {}; // deviceId -> { at, action, text } last thing the app did with the light
     this._tokens = {}; // token id -> { token, title }
     this._simulationRunning = false;
@@ -279,6 +280,7 @@ class CircadianApp extends Homey.App {
               dim: st && st.dim != null ? st.dim : null,
               temp: st && st.light_temperature != null ? st.light_temperature : null,
               lock: lock === 'untilOff' ? 'untilOff' : (lock ? 'manual' : null),
+              missing: !!this._missing[id],
               status: this._status[id] || null,
             };
           }),
@@ -536,6 +538,7 @@ class CircadianApp extends Homey.App {
       try {
         const device = await this.homeyApi.devices.getDevice({ id: deviceId });
         if (!device) continue;
+        delete this._missing[deviceId];
         this._deviceNames[deviceId] = device.name || deviceId;
 
         const state = {};
@@ -557,9 +560,24 @@ class CircadianApp extends Homey.App {
         this._capInstances[deviceId] = instances;
         this.log(`Listening to "${this._deviceNames[deviceId]}" (onoff=${state.onoff}, dim=${state.dim}).`);
       } catch (err) {
+        if (this._markIfMissing(deviceId, err)) continue;
         this.log(`Could not listen to capability changes for ${deviceId}:`, err.message);
       }
     }
+  }
+
+  /**
+   * A light that was deleted or re-paired in Homey (a new pairing gets a new
+   * id) stays in its group until removed on the settings page. Remember it,
+   * so the app stops trying to update it every tick and the page can offer
+   * to remove it. Checked again whenever the settings are saved.
+   */
+  _markIfMissing(deviceId, err) {
+    if (!/not found/i.test(err && err.message)) return false;
+    if (!this._missing[deviceId]) this.log(`Light ${deviceId} no longer exists in Homey — skipping it.`);
+    this._missing[deviceId] = true;
+    this._noteStatus(deviceId, 'missing', 'Finnes ikke lenger i Homey');
+    return true;
   }
 
   /** Drop and recreate one light's listeners, e.g. after they missed an event. */
@@ -757,6 +775,7 @@ class CircadianApp extends Homey.App {
       // up across many lights.
       await Promise.all(group.deviceIds.map((deviceId) => {
         if (this.locks[deviceId]) return null; // manually adjusted, waiting to be resumed
+        if (this._missing[deviceId]) return null; // deleted or re-paired in Homey
         return this._applyToDevice(deviceId, tempValue, dimValue, group.skipOffLights !== false, {
           fadeMs: this._fadeMs(group),
         });
@@ -836,6 +855,7 @@ class CircadianApp extends Homey.App {
       if (!device) return;
       await this._applyValuesToDevice(deviceId, device, value, dimValue, skipOffLights, opts);
     } catch (err) {
+      if (this._markIfMissing(deviceId, err)) return;
       this.log(`Failed to update device ${deviceId}:`, err.message);
       this._noteStatus(deviceId, 'error', 'Feil: ' + err.message);
     }

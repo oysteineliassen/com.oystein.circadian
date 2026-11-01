@@ -280,6 +280,34 @@
       }
       return null;
     }
+    // Lights still in a group although Homey no longer has them (deleted, or
+    // re-paired, which gives a light a new id)
+    function missingIds(group) {
+      return (group.deviceIds || []).filter((id) => {
+        const l = lightStatus(id);
+        if (l) return !!l.missing;
+        return devices.length > 0 && !devices.some((d) => d.id === id);
+      });
+    }
+
+    function missingNote(group, onRemoved) {
+      const ids = missingIds(group);
+      if (ids.length === 0) return null;
+      const n = ids.length;
+      return h('div', { class: 'banner' }, [
+        (n === 1 ? '1 lys' : n + ' lys') + ' i rommet finnes ikke lenger i Homey (slettet, eller paret på nytt og fått ny ID). ',
+        h('button', {
+          type: 'button',
+          class: 'link',
+          text: n === 1 ? 'Fjern det fra rommet' : 'Fjern dem fra rommet',
+          onclick: () => {
+            group.deviceIds = group.deviceIds.filter((id) => !ids.includes(id));
+            onRemoved();
+          },
+        }),
+      ]);
+    }
+
     function deviceName(id) {
       const d = devices.find((x) => x.id === id);
       return d ? d.name : 'Ukjent lys';
@@ -388,9 +416,11 @@
       glow.style.background = enabled ? lightCss(v.temp) : 'var(--track)';
       if (enabled) glow.style.boxShadow = '0 0 ' + Math.round(6 + (v.dim == null ? 0.7 : v.dim) * 16) + 'px ' + lightCss(v.temp, 0.8);
 
+      const missing = missingIds(group);
+      const present = (group.deviceIds || []).filter((id) => !missing.includes(id));
       const lamps = h('div', { class: 'lamps' });
-      (group.deviceIds || []).forEach((id) => lamps.append(lampTile(id)));
-      if (!group.deviceIds || group.deviceIds.length === 0) {
+      present.forEach((id) => lamps.append(lampTile(id)));
+      if (present.length === 0) {
         lamps.append(h('span', { class: 'hint', text: 'Ingen lys valgt ennå.' }));
       }
 
@@ -412,6 +442,7 @@
         strip,
         h('div', { class: 'strip-labels' }, ['00', '06', '12', '18', '24'].map((t) => h('span', { text: t }))),
         lamps,
+        missingNote(group, () => { save(); render(); }),
         h('div', { class: 'room-foot' }, [
           h('div', { class: 'toggle' }, [
             switchButton(group.enabled !== false, 'Døgnrytme for ' + (group.name || 'rommet'), (on) => {
@@ -531,7 +562,10 @@
         root.append(sunBox);
       }
 
-      const lightsBox = h('div', { class: 'section' }, [h('h3', { text: 'Lys i rommet' })]);
+      const lightsBox = h('div', { class: 'section' }, [
+        h('h3', { text: 'Lys i rommet' }),
+        missingNote(group, render),
+      ]);
       const list = h('div', { class: 'devices-list' });
       renderDeviceList(list, group);
       lightsBox.append(list);

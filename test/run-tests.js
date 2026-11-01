@@ -114,6 +114,8 @@ function toCapsObj(state) {
   return o;
 }
 
+const missingLookups = []; // ids the app asked for that Homey doesn't have
+
 function makeApi(devices) {
   const byId = {};
   devices.forEach((d) => { byId[d.id] = d; });
@@ -123,6 +125,10 @@ function makeApi(devices) {
       getDevices: async () => byId,
       async getDevice({ id, $cache }) {
         const d = byId[id];
+        if (!d) {
+          missingLookups.push(id);
+          throw new Error(`Not Found: Device with ID ${id}`);
+        }
         if ($cache !== false) return d;
         return Object.assign({}, d, { capabilitiesObj: toCapsObj(d.real) });
       },
@@ -311,6 +317,20 @@ test('status gir tidssone og soltider til klokka', async () => {
   const st = await app.getStatus();
   assert.strictEqual(st.timeZone, 'Europe/Oslo');
   assert.deepStrictEqual(Object.keys(st.sun).sort(), ['sunriseMinutes', 'sunsetMinutes']);
+});
+
+test('lys som er slettet i Homey hoppes over og vises som manglende', async () => {
+  const d = makeDevice('a', { onoff: true, dim: 0.5, light_temperature: 0.5 });
+  missingLookups.length = 0;
+  const { app } = await startApp({ devices: [d], groups: [{ id: 'g1', name: 'Stue', mode: 'keyframes', keyframes: KEYFRAMES, deviceIds: ['a', 'gone'] }] });
+  assert.ok(d.writes.length > 0, 'lyset som finnes skal fortsatt styres');
+  const before = missingLookups.length;
+  await app._tick();
+  assert.strictEqual(missingLookups.length, before, 'skal ikke prøve det manglende lyset hver runde');
+  const st = await app.getStatus();
+  const gone = st.groups[0].lights.find((l) => l.id === 'gone');
+  assert.strictEqual(gone.missing, true);
+  assert.strictEqual(st.groups[0].lights.find((l) => l.id === 'a').missing, false);
 });
 
 test('syntaks i innstillingssiden', () => {
