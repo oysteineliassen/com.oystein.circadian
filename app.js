@@ -36,6 +36,7 @@ class CircadianApp extends Homey.App {
     this._offAt = {}; // deviceId -> time we last saw the light go off
     this._turningOn = {}; // deviceId -> true while values are being set after a switch-on
     this._missing = {}; // deviceId -> true for lights in a group that Homey no longer has
+    this._reportedAt = {}; // deviceId -> when Homey last reported a change of the light
     this._failures = {}; // deviceId -> failed updates in a row
     this._luxListeningSince = {}; // sensorId -> when the app started listening to it
     this._notified = (await this.homey.settings.get('notified')) || {}; // problem key -> when the user was told
@@ -190,6 +191,7 @@ class CircadianApp extends Homey.App {
               lock: lock === 'untilOff' ? 'untilOff' : (lock ? 'manual' : null),
               missing: !!this._missing[id],
               status: this._status[id] || null,
+              reportedAt: this._reportedAt[id] || null,
             };
           }),
         };
@@ -199,16 +201,38 @@ class CircadianApp extends Homey.App {
 
   async resumeDevice(deviceId) {
     delete this.locks[deviceId];
-    await this.homey.settings.set('locks', this.locks);
-    await this._tick();
+    this._persistLocks();
+    this._applyNowTo([deviceId]);
     return true;
   }
 
   async resumeAll() {
+    const ids = Object.keys(this.locks);
     this.locks = {};
-    await this.homey.settings.set('locks', this.locks);
-    await this._tick();
+    this._persistLocks();
+    this._applyNowTo(ids);
     return true;
+  }
+
+  /**
+   * Give these lights their room's values right away, without the settle
+   * wait (they were just unlocked, nothing to catch) and without making the
+   * caller wait: the settings page and Flow answer at once, and the lights
+   * follow within a second or two.
+   */
+  _applyNowTo(ids) {
+    if (!this.config || this.config.enabled === false) return;
+    const now = this._now();
+    const sun = this._sunMinutes();
+    ids.forEach((id) => {
+      if (this._missing[id] || this._waking[id] || this._isTesting(id)) return;
+      const group = this._groupsFor(id)[0];
+      if (!group) return;
+      const target = this._groupTarget(group, now, sun);
+      this._applyToDevice(id, target.temp, target.dim, group.skipOffLights !== false, {
+        quick: true, dimTolerance: target.dimTolerance,
+      }).catch((err) => this.log(`Could not update ${id} after unlocking:`, err.message));
+    });
   }
 
   // --- core loop ---

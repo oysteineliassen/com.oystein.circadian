@@ -150,6 +150,14 @@ skriv til ham på norsk. Han utvikler på Windows og har en Homey Pro (Early 202
 - **Fade** (`fadeSeconds`) er begrenset til 5 s: lys som rapporterer
   mellomverdier under fading må komme innenfor `LOCK_GRACE_MS` (8 s), ellers
   låses de som manuelt justert. Ved påslag brukes ingen fade.
+- **Lås opp** (`resumeDevice`/`resumeAll`) kjører ikke hele `_tick`, men
+  `_applyNowTo(ids)`: bare de lysene, med `quick: true` (ingen settle-vent),
+  og uten at kallet venter på lysene. Innstillingssiden viser en ring som
+  tømmes én gang (`progressRing`, ikke en spinner) og henter status etterpå.
+- **Siste melding** (`_reportedAt`, satt i `_onCapabilityChange`) vises som
+  «endret kl. …» per lys. Endrer den seg ikke etter bruk av fjernkontroll, har
+  ikke Homey fått beskjed (lysets egen app har mistet kontakten; f.eks. Plejd
+  sin app, som ble løst med omstart av den).
 - **Påslag** (`_onSwitchedOn`) venter 1 s før skriving, så en flow som slår på
   og deretter pauser et lys rekker å pause det først.
 - **Flow-tokens** kan ikke endre tittel; ved nytt gruppenavn fjernes tokenet og

@@ -132,7 +132,13 @@
     .lamps { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
     html body .lamp { border: 1px solid var(--border-soft) !important; background: transparent !important; border-radius: 12px !important; padding: 10px 6px !important; display: grid !important; justify-items: center !important; gap: 4px !important; text-align: center !important; cursor: default !important; }
     html body button.lamp { cursor: pointer !important; }
-    .bulb { width: 36px; height: 36px; border-radius: 50%; }
+    .bulb { display: block; width: 36px; height: 36px; border-radius: 50%; }
+    .bulb-wrap { display: block; position: relative; width: 36px; height: 36px; }
+    .bulb-wrap .progress-ring { position: absolute; left: -7px; top: -7px; }
+    .lamp .t { font-size: 11px; color: var(--faint); }
+    /* A ring that empties once while the app works: progress, not a spinner */
+    .progress-ring { display: inline-block; vertical-align: middle; pointer-events: none; }
+    .progress-ring circle { stroke: var(--accent); }
     .bulb.off { box-shadow: inset 0 0 0 2px var(--border); }
     .lamp .n { font-size: 13px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
     .lamp .s { font-size: 11.5px; color: var(--muted); }
@@ -409,6 +415,53 @@
       pendingRender = setTimeout(render, wait);
     }
 
+    // A ring that goes from full to empty once over ms (not a spinner), shown
+    // while the app works. Renders wait until it is done, so it isn't cut off.
+    function progressRing(host, ms, size) {
+      const r = size / 2 - 2;
+      const c = 2 * Math.PI * r;
+      const svg = s('svg', { class: 'progress-ring', width: size, height: size, viewBox: '0 0 ' + size + ' ' + size, 'aria-hidden': 'true' });
+      const circle = s('circle', {
+        cx: size / 2, cy: size / 2, r, fill: 'none', 'stroke-width': 3, 'stroke-linecap': 'round',
+        'stroke-dasharray': c.toFixed(2), 'stroke-dashoffset': '0', transform: 'rotate(-90 ' + size / 2 + ' ' + size / 2 + ')',
+      }, svg);
+      host.append(svg);
+      holdRenderUntil = Math.max(holdRenderUntil, Date.now() + ms);
+      const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (!reduced) circle.style.transition = 'stroke-dashoffset ' + ms + 'ms linear';
+        circle.style.strokeDashoffset = c.toFixed(2);
+      }));
+      return new Promise((resolve) => setTimeout(() => { svg.remove(); resolve(); }, ms));
+    }
+
+    // Unlock (one light, or all with no id), with the ring running meanwhile.
+    // The lights get their values within a second or two; then the status is
+    // fetched again so the page shows them.
+    const UNLOCK_MS = 2000;
+    let unlocking = false;
+    function unlock(deviceId, ringHost, ringSize) {
+      if (unlocking) return Promise.resolve();
+      unlocking = true;
+      const request = deviceId
+        ? HomeyRef.api('POST', '/resume', { deviceId })
+        : HomeyRef.api('POST', '/resume-all');
+      return Promise.all([request, progressRing(ringHost, UNLOCK_MS, ringSize)])
+        .then(() => { devices.forEach((d) => { if (!deviceId || d.id === deviceId) d.locked = false; }); })
+        .then(loadStatus)
+        .then(render)
+        .catch((err) => updateSaveBar(tr('settings.resumeFailed') + (err && err.message ? err.message : err), 'dirty'))
+        .then(() => { unlocking = false; });
+    }
+
+    function reportedText(ts) {
+      if (!ts) return '';
+      const d = new Date(ts);
+      const today = new Date().toDateString() === d.toDateString();
+      const time = d.toLocaleTimeString(tr('settings.locale'), { hour: '2-digit', minute: '2-digit' });
+      return tr('settings.changedAt', { time: today ? time : d.toLocaleDateString(tr('settings.locale'), { weekday: 'short' }).replace('.', '') + ' ' + time });
+    }
+
     function switchButton(on, label, onChange) {
       const b = h('span', { class: 'switch', role: 'switch', tabindex: '0', 'aria-checked': String(!!on), 'aria-label': label });
       const toggle = () => {
@@ -462,8 +515,11 @@
         h('button', {
           type: 'button',
           text: tr('settings.resumeAll'),
-          onclick: () => HomeyRef.api('POST', '/resume-all').then(loadStatus)
-            .catch((err) => updateSaveBar(tr('settings.resumeFailed') + err.message, 'dirty')),
+          onclick: (evt) => {
+            const btn = evt.currentTarget;
+            btn.prepend(h('span', { style: 'margin-right:6px' }));
+            unlock(null, btn.firstChild, 16);
+          },
         }),
       ]));
 
@@ -647,15 +703,16 @@
         bulb.style.background = color;
         bulb.style.boxShadow = 'inset 0 0 0 1px var(--edge), 0 0 ' + Math.round(4 + strength * 20) + 'px ' + color;
       }
+      const bulbWrap = h('span', { class: 'bulb-wrap' }, [bulb]);
       const cls = 'lamp' + (l && l.lock ? ' locked' : '') + (l && !l.lock && l.status && l.status.check === 'error' ? ' error' : '');
-      const children = [bulb, h('span', { class: 'n', text: name }), h('span', { class: 's', text })];
+      const children = [bulbWrap, h('span', { class: 'n', text: name }), h('span', { class: 's', text })];
+      if (l && l.reportedAt) children.push(h('span', { class: 't', text: reportedText(l.reportedAt) }));
       if (l && l.lock) {
         return h('button', {
           type: 'button',
           class: cls,
           'aria-label': name + ': ' + text,
-          onclick: () => HomeyRef.api('POST', '/resume', { deviceId: id }).then(loadStatus)
-            .catch((err) => updateSaveBar(tr('settings.resumeFailed') + err.message, 'dirty')),
+          onclick: () => unlock(id, bulbWrap, 50),
         }, children);
       }
       return h('div', { class: cls, title: l && l.status ? l.status.text : '' }, children);
@@ -1596,12 +1653,14 @@
             type: 'button',
             class: 'link',
             text: tr('settings.unlock'),
-            onclick: () => HomeyRef.api('POST', '/resume', { deviceId: d.id }).then(() => {
-              d.locked = false;
-              return loadStatus();
-            }).then(render).catch((err) => updateSaveBar(tr('settings.resumeFailed') + err.message, 'dirty')),
+            onclick: (evt) => {
+              const btn = evt.currentTarget;
+              btn.textContent = '';
+              unlock(d.id, btn, 18);
+            },
           }));
         }
+        if (l && l.reportedAt) row.append(h('span', { class: 'tag', text: reportedText(l.reportedAt) }));
         container.append(row);
       });
     }

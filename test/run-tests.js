@@ -632,6 +632,25 @@ test('varsel i Homey: lys som mangler, sensor som er stille, lys som ikke lar se
   assert.strictEqual(homey.notices.length, before);
 });
 
+test('lås opp svarer med en gang, og bare lampen som låses opp får nye verdier', async () => {
+  const locked = makeDevice('a', { onoff: true, dim: 0.5, light_temperature: 0.5 });
+  const other = makeDevice('b', { onoff: true, dim: 0.5, light_temperature: 0.5 });
+  const { app } = await startApp({ devices: [locked, other], groups: [{ id: 'g1', name: 'Stue', mode: 'keyframes', keyframes: KEYFRAMES, fadeSeconds: 0, deviceIds: ['a', 'b'] }], locks: { a: true } });
+  assert.deepStrictEqual(locked.writes, [], 'låst lampe røres ikke');
+  other.writes.length = 0;
+  const t0 = Date.now();
+  await app.resumeDevice('a');
+  assert.ok(Date.now() - t0 < 100, 'svaret venter ikke på lampene');
+  await wait(400);
+  assert.ok(locked.writes.some((w) => w.cap === 'light_temperature'), 'lampen får verdier uten 3 s venting');
+  assert.deepStrictEqual(other.writes, [], 'de andre lampene røres ikke');
+  assert.ok(!app.locks.a);
+  // Tidspunktet for siste melding fra Homey vises i status
+  locked.report('dim', 0.3);
+  const st = await app.getStatus();
+  assert.ok(Date.now() - st.groups[0].lights[0].reportedAt < 1000);
+});
+
 test('syntaks i innstillingssiden', () => {
   const html = fs.readFileSync(path.join(ROOT, 'settings/index.html'), 'utf8');
   const scripts = [...html.matchAll(/<script type="text\/javascript">([\s\S]*?)<\/script>/g)].map((m) => m[1]);

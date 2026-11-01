@@ -204,7 +204,8 @@
     "legendActual": "Actual (its colour is the actual light colour)",
     "planBold": "plan <b>",
     "actualBold": "actual <b>",
-    "actualWarmthBold": "actual warmth <b>"
+    "actualWarmthBold": "actual warmth <b>",
+    "changedAt": "changed {time}"
   },
   "app": {
     "unnamed": "Unnamed",

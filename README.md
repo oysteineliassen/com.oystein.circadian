@@ -65,6 +65,12 @@ solnedgang, eller egne sjekkpunkter på en 24-timers klokke.
 - **Dagslys** (per rom): med en lyssensor (lux) i rommet skrus lysstyrken
   ned når det er lyst ute, og opp igjen når det er mørkt og grått. Bruker
   snittet de siste 10 minuttene og endrer bare når forskjellen er over 5 %.
+- **Siste melding fra lyset**: hver lampe viser når Homey sist meldte en
+  endring («endret kl. 14:02»). Endrer du et lys med en fjernkontroll og
+  tidspunktet ikke endrer seg, har ikke Homey fått beskjed; da kan det hjelpe
+  å starte lysets egen app i Homey på nytt.
+- **Lås opp** virker med en gang: bare den lampen får nye verdier, og en ring
+  rundt lampen viser at appen jobber.
 - **Varsler**: en melding i Homeys tidslinje når et lys ikke finnes lenger,
   en lyssensor ikke har målt noe på over et døgn, eller et lys ikke har latt
   seg oppdatere tre ganger på rad. Hvert problem varsles én gang. Kan skrus

@@ -204,7 +204,8 @@
     "legendActual": "Faktisk (fargen er den faktiske lysfargen)",
     "planBold": "plan <b>",
     "actualBold": "faktisk <b>",
-    "actualWarmthBold": "faktisk varme <b>"
+    "actualWarmthBold": "faktisk varme <b>",
+    "changedAt": "endret kl. {time}"
   },
   "app": {
     "unnamed": "Uten navn",
