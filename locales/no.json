@@ -103,7 +103,7 @@
     "lastWeek": "Siste uke",
     "loading": "Henter...",
     "noHistory": "Ingen historikk ennå. Appen logger hvert 2. minutt mens døgnrytmen er på, så grafen fylles etter hvert.",
-    "historyHint": "Flaten er det planen ber om (fargen er lysfargen), linjen er snittet av lysene som faktisk er på, og 0 når alle er av. Dra fingeren over grafen for å se verdiene. De samme tallene finnes i Homey under Insights.",
+    "historyHint": "Flaten er det planen ber om, med planens lysfarge. Linjen er lysene som faktisk er på: høyden er snittet av lysstyrken (0 når alle er av), og fargen er den faktiske lysfargen. Dra fingeren over grafen for å se verdiene. De samme tallene finnes i Homey under Insights.",
     "historyFailed": "Kunne ikke hente historikk: ",
     "historyLabel": "Lysstyrke og lysfarge ",
     "lastDayLower": "siste døgn",
@@ -201,9 +201,10 @@
     "notifyProblems": "Varsle i Homey når noe er galt",
     "notifyProblemsHint": "En melding i Homeys tidslinje når et lys ikke finnes lenger, en lyssensor har sluttet å måle, eller et lys ikke lar seg oppdatere. Hvert problem varsles én gang.",
     "legendPlan": "Plan",
-    "legendActual": "Faktisk",
+    "legendActual": "Faktisk (fargen er den faktiske lysfargen)",
     "planBold": "plan <b>",
-    "actualBold": "faktisk <b>"
+    "actualBold": "faktisk <b>",
+    "actualWarmthBold": "faktisk varme <b>"
   },
   "app": {
     "unnamed": "Uten navn",
@@ -230,6 +231,7 @@
     "notifyFailing": "{light} i {room} har ikke latt seg oppdatere {n} ganger på rad. Sjekk at lyset er tilgjengelig i Homey.",
     "insightPlanWarmth": "{name}: varme (plan)",
     "insightPlanBrightness": "{name}: lysstyrke (plan)",
-    "insightActualBrightness": "{name}: lysstyrke (faktisk)"
+    "insightActualBrightness": "{name}: lysstyrke (faktisk)",
+    "insightActualWarmth": "{name}: varme (faktisk)"
   }
 }

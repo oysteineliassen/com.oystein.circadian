@@ -131,12 +131,16 @@ skriv til ham på norsk. Han utvikler på Windows og har en Homey Pro (Early 202
   Kan skrus av med `config.notifyProblems`.
 - **Insights**: logg-ID `${groupId}-plan-temp` / `-plan-dim` (det planen
   ber om, med dagslys, også når lysene er av), `-actual-dim` (snittet av
-  lysene som faktisk er på, 0 når alle er av; `_actualBrightness`) og `-lux`.
+  lysene som faktisk er på, 0 når alle er av; `_actualBrightness`),
+  `-actual-temp` (snittet av varmen til lysene som er på, regnet om til
+  planens skala med fargeområdet; ingenting logges når alle er av;
+  `_actualWarmth`) og `-lux`.
   Logger av eldre type (`-temp`, `-dim`) slettes i `_pruneInsights` ved
   lagring, og historikken leser dem med til da. En loggs tittel kan ikke
   endres; ny betydning = ny logg-ID. Historikkgrafen leser loggene med
   `homeyApi.insights.getLogEntries({ id: 'homey:app:<app-id>:<logg-id>', resolution: 'last24Hours' | 'last7Days' })`
-  (`/history`): planen som flate, faktisk som linje, med forklaring. Lux har
+  (`/history`): planen som flate, faktisk som linje farget med faktisk
+  lysfarge (med mørk kant under i begge temaer), med forklaring. Lux har
   egen graf (log-skala), aldri samme akse som prosent.
 - Låser: `true` = manuell (til opplåsing), `'untilOff'` = pause til lyset
   slås av.

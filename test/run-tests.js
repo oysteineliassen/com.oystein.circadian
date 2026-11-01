@@ -169,10 +169,10 @@ function makeApi(devices) {
       // Only the room "g1" has logs, and no light sensor
       async getLogEntries({ id, resolution }) {
         // An old "dim" log at 10:00 and the new "plan-dim" at 10:05
-        const m = /^homey:app:com\.oystein\.circadian:(g1)-(temp|dim|plan-dim|actual-dim)$/.exec(id);
+        const m = /^homey:app:com\.oystein\.circadian:(g1)-(temp|dim|plan-dim|actual-dim|actual-temp)$/.exec(id);
         if (!m) throw new Error('Not Found');
-        const at = m[2] === 'plan-dim' || m[2] === 'actual-dim' ? '2026-11-01T10:05:00.000Z' : '2026-11-01T10:00:00.000Z';
-        const v = { temp: 20, dim: 80, 'plan-dim': 70, 'actual-dim': 0 }[m[2]];
+        const at = ['plan-dim', 'actual-dim', 'actual-temp'].includes(m[2]) ? '2026-11-01T10:05:00.000Z' : '2026-11-01T10:00:00.000Z';
+        const v = { temp: 20, dim: 80, 'plan-dim': 70, 'actual-dim': 60, 'actual-temp': 90 }[m[2]];
         return { values: [{ t: at, v }, { t: '2026-11-01T10:10:00.000Z', v: null }], resolution };
       },
     },
@@ -455,16 +455,26 @@ test('verdiene logges til Insights, og slettede rom ryddes bort', async () => {
   const d = makeDevice('a', { onoff: true, dim: 0.5, light_temperature: 0.5 });
   const { app, homey } = await startApp({ devices: [d], groups: [{ id: 'g1', name: 'Stue', mode: 'keyframes', keyframes: KEYFRAMES, deviceIds: ['a'] }] });
   await wait(20);
-  assert.deepStrictEqual(Object.keys(homey.logs).sort(), ['g1-actual-dim', 'g1-plan-dim', 'g1-plan-temp']);
+  assert.deepStrictEqual(Object.keys(homey.logs).sort(), ['g1-actual-dim', 'g1-actual-temp', 'g1-plan-dim', 'g1-plan-temp']);
   assert.ok(homey.logs['g1-plan-temp'].entries.length > 0);
   assert.strictEqual(homey.logs['g1-plan-temp'].opts.units, '%');
   assert.deepStrictEqual(homey.logs['g1-plan-dim'].opts.title, { en: 'Stue: brightness (plan)', no: 'Stue: lysstyrke (plan)' });
   // Faktisk lysstyrke: snittet av lysene som er på, 0 når alle er av
   const actual = homey.logs['g1-actual-dim'].entries;
   assert.ok(actual[actual.length - 1] > 0, 'lyset er på');
+  // Faktisk varme på planens skala: en IKEA-lampe (2200–4000 K) på 0,5
+  // er 3100 K, som er 0,79 på planens skala
+  app.config.calibration = { a: { warmK: 2200, coolK: 4000 } };
+  d.report('light_temperature', 0.5);
+  await app._logInsights(app._now(), {});
+  const warmth = homey.logs['g1-actual-temp'].entries;
+  assert.strictEqual(warmth[warmth.length - 1], 79);
   d.report('onoff', false);
   await app._logInsights(app._now(), {});
   assert.strictEqual(actual[actual.length - 1], 0, 'alle lys av gir 0, uansett hva planen sier');
+  const warmthCount = warmth.length;
+  await app._logInsights(app._now(), {});
+  assert.strictEqual(warmth.length, warmthCount, 'ingen faktisk varme når alle lys er av');
   // Logger av den gamle typen fjernes ved lagring
   homey.logs['g1-dim'] = { name: 'g1-dim' };
   await app._pruneInsights();
@@ -548,8 +558,8 @@ test('historikk hentes fra appens Insights-logger', async () => {
   const h = await app.getHistory('g1', 'day');
   const t0 = Date.parse('2026-11-01T10:00:00.000Z');
   const t1 = Date.parse('2026-11-01T10:05:00.000Z');
-  assert.deepStrictEqual(h, { range: 'day', temp: [[t0, 20]], dim: [[t0, 80], [t1, 70]], actual: [[t1, 0]], lux: [] });
-  assert.deepStrictEqual(await app.getHistory('ukjent', 'week'), { range: 'week', temp: [], dim: [], actual: [], lux: [] });
+  assert.deepStrictEqual(h, { range: 'day', temp: [[t0, 20]], dim: [[t0, 80], [t1, 70]], actual: [[t1, 60]], actualTemp: [[t1, 90]], lux: [] });
+  assert.deepStrictEqual(await app.getHistory('ukjent', 'week'), { range: 'week', temp: [], dim: [], actual: [], actualTemp: [], lux: [] });
 });
 
 test('språkfilene har de samme tekstene, og alle som brukes finnes', () => {

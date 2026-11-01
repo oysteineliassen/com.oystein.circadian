@@ -73,8 +73,9 @@ solnedgang, eller egne sjekkpunkter på en 24-timers klokke.
   som tekst og gjenopprette dem senere, f.eks. etter at appen er installert
   på nytt.
 - **Historikk**: det planen ber om (varme og lysstyrke, med dagslys regnet
-  inn), lysstyrken lysene faktisk har (snittet av de som er på, 0 når alle er
-  av), og målt dagslys, logges hvert 2. minutt. Grafen ligger på rommets side
+  inn), lysstyrken og varmen lysene faktisk har (snittet av de som er på; 0 i
+  lysstyrke når alle er av), og målt dagslys, logges hvert 2. minutt. I
+  grafen er den faktiske linjen farget med den faktiske lysfargen. Grafen ligger på rommets side
   («Historikk», siste døgn eller uke), og de samme tallene finnes i Homey
   under Insights.
 

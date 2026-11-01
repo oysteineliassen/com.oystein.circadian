@@ -103,7 +103,7 @@
     "lastWeek": "Last week",
     "loading": "Loading...",
     "noHistory": "No history yet. The app logs every 2 minutes while the rhythm is on, so the graph fills up over time.",
-    "historyHint": "The area is what the plan asks for (its colour is the light colour), the line is the average of the lights that are actually on, and 0 when all are off. Drag a finger across the graph to see the values. The same numbers are in Homey under Insights.",
+    "historyHint": "The area is what the plan asks for, in the plan’s light colour. The line is the lights that are actually on: its height is their average brightness (0 when all are off), and its colour is their actual light colour. Drag a finger across the graph to see the values. The same numbers are in Homey under Insights.",
     "historyFailed": "Could not load history: ",
     "historyLabel": "Brightness and light colour ",
     "lastDayLower": "last day",
@@ -201,9 +201,10 @@
     "notifyProblems": "Notify in Homey when something is wrong",
     "notifyProblemsHint": "A message in Homey’s timeline when a light no longer exists, a light sensor has stopped measuring, or a light cannot be updated. Each problem is told once.",
     "legendPlan": "Plan",
-    "legendActual": "Actual",
+    "legendActual": "Actual (its colour is the actual light colour)",
     "planBold": "plan <b>",
-    "actualBold": "actual <b>"
+    "actualBold": "actual <b>",
+    "actualWarmthBold": "actual warmth <b>"
   },
   "app": {
     "unnamed": "Unnamed",
@@ -230,6 +231,7 @@
     "notifyFailing": "{light} in {room} could not be updated {n} times in a row. Check that the light is available in Homey.",
     "insightPlanWarmth": "{name}: warmth (plan)",
     "insightPlanBrightness": "{name}: brightness (plan)",
-    "insightActualBrightness": "{name}: brightness (actual)"
+    "insightActualBrightness": "{name}: brightness (actual)",
+    "insightActualWarmth": "{name}: warmth (actual)"
   }
 }

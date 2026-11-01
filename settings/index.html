@@ -1140,7 +1140,7 @@
       const key = group.id + ':' + range;
       const cached = historyCache[key];
       const show = (raw) => {
-        const data = Object.assign({ range, temp: [], dim: [], actual: [], lux: [] }, raw || {});
+        const data = Object.assign({ range, temp: [], dim: [], actual: [], actualTemp: [], lux: [] }, raw || {});
         holder.innerHTML = '';
         if (!data.dim.length && !data.temp.length && !data.actual.length) {
           holder.append(h('p', { class: 'hint', text: tr('settings.noHistory') }));
@@ -1237,12 +1237,35 @@
         outline.style.stroke = 'var(--muted)';
       });
 
-      // What the lights actually showed: on top of the plan
+      // What the lights actually showed, on top of the plan: height is their
+      // brightness, colour their actual light colour. A dark edge underneath
+      // (in both themes) sets the line apart from the plan's area below it,
+      // which can have the same colour.
+      const actualColour = (t) => {
+        const v = nearestWithin(data.actualTemp, t, 10 * 60000);
+        return v == null ? null : lightCss(v / 100);
+      };
       segments(data.actual).forEach((seg) => {
         if (seg.length < 2) return;
-        const line = seg.map(([t, v], i) => (i ? 'L' : 'M') + frame.x(t).toFixed(1) + ',' + y(v).toFixed(1)).join(' ');
-        const p = s('path', { d: line, fill: 'none', 'stroke-width': 2, 'stroke-linejoin': 'round' }, svg);
-        p.style.stroke = 'var(--text)';
+        const pts = seg.map(([t, v]) => frame.x(t).toFixed(1) + ',' + y(v).toFixed(1));
+        const edge = s('path', { d: 'M' + pts.join(' L'), fill: 'none', 'stroke-width': 4, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, svg);
+        edge.style.stroke = 'rgba(0, 0, 0, 0.8)';
+        // Runs of the same colour (rounded) as one path each
+        let run = null;
+        const flush = () => {
+          if (run && run.pts.length > 1) {
+            s('path', { d: 'M' + run.pts.join(' L'), fill: 'none', stroke: run.colour, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, svg);
+          }
+        };
+        seg.forEach(([t], i) => {
+          const colour = actualColour(t);
+          if (!run || run.colour !== colour) {
+            flush();
+            run = { colour, pts: i ? [pts[i - 1]] : [] };
+          }
+          run.pts.push(pts[i]);
+        });
+        flush();
       });
 
       const hoverSeries = data.actual.length ? data.actual : dimSeries;
@@ -1250,9 +1273,11 @@
         const temp = nearest(data.temp, t);
         const lux = nearest(data.lux, t);
         const actual = nearest(data.actual, t);
+        const actualTemp = nearestWithin(data.actualTemp, t, 10 * 60000);
         return [
           (data.dim.length ? tr('settings.planBold') + Math.round(nearest(data.dim, t)) + ' %</b>' : null),
           (actual != null ? tr('settings.actualBold') + Math.round(actual) + ' %</b>' : null),
+          (actualTemp != null ? tr('settings.actualWarmthBold') + Math.round(actualTemp) + ' %</b>' : null),
           (temp != null ? tr('settings.warmthBold') + Math.round(temp) + ' %</b>' : null),
           (lux != null ? '<b>' + Math.round(lux) + tr('settings.luxBoldEnd') : null),
         ].filter(Boolean).join(' · ');
@@ -1261,7 +1286,7 @@
 
       // Two series: say which is which
       const swatch = h('span', { style: 'display:inline-block; width:14px; height:10px; border-radius:2px; vertical-align:-1px; margin-right:5px; background: linear-gradient(to right, ' + lightCss(1) + ', ' + lightCss(0) + '); box-shadow: inset 0 0 0 1px var(--edge)' });
-      const line = h('span', { style: 'display:inline-block; width:14px; height:2px; vertical-align:3px; margin-right:5px; background: var(--text)' });
+      const line = h('span', { style: 'display:inline-block; width:14px; height:4px; border-radius:2px; vertical-align:2px; margin-right:5px; background: linear-gradient(to right, ' + lightCss(1) + ', ' + lightCss(0) + '); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.8)' });
       return h('div', { class: 'stack', style: 'gap:4px' }, [
         chart,
         h('div', { class: 'small muted', style: 'display:flex; gap:14px' }, [
@@ -1292,6 +1317,13 @@
       });
       const wrap = withHover(svg, frame, H, data.lux, (t) => '<b>' + Math.round(nearest(data.lux, t)) + tr('settings.luxBoldEnd'), (t) => y(nearest(data.lux, t)));
       return h('div', { class: 'stack', style: 'gap:2px' }, [h('span', { class: 'small muted', text: tr('settings.luxChartTitle') }), wrap]);
+    }
+
+    // The value at the point nearest t, if one is within maxMs (else null)
+    function nearestWithin(points, t, maxMs) {
+      let best = null;
+      (points || []).forEach((p) => { if (best == null || Math.abs(p[0] - t) < Math.abs(best[0] - t)) best = p; });
+      return best && Math.abs(best[0] - t) <= maxMs ? best[1] : null;
     }
 
     function nearest(points, t) {
