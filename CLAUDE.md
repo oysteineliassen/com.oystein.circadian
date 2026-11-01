@@ -13,6 +13,12 @@ skriv til ham på norsk. Han utvikler på Windows og har en Homey Pro (Early 202
   logikk der.
 - GitHub Actions (`.github/workflows/test.yml`) kjører testene og
   `homey app validate --level debug` på hver push. Sjekk at den er grønn.
+- `.github/workflows/publish.yml` laster opp hver endring i appens filer på
+  `main` til Homey App Store som utkast (krever hemmeligheten `HOMEY_PAT`).
+  Den setter versjon `1.1.<run_number>` og en endringslogg fra commit-
+  meldingen uten å committe dem, og kjører Homey CLI direkte (Athoms egen
+  action krever `package-lock.json`, som er utelatt med vilje). Skriv derfor
+  commit-meldinger som gir mening for Øystein som endringslogg.
 - Hold `README.md` oppdatert når funksjoner eller Flow-kort endres.
 
 ## Filer

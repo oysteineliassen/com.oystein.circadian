@@ -100,6 +100,36 @@ Hver gang en endring pushes til GitHub, kjører GitHub Actions testene i
 hake eller rødt kryss ved commiten på GitHub. Testene kan også kjøres lokalt
 med `node test/run-tests.js`.
 
+## Oppdatere uten PC (Homey App Store, testkanalen)
+
+GitHub laster opp en ny versjon til Homey App Store hver gang appen endres
+på `main` (`.github/workflows/publish.yml`). Versjonen er ikke offentlig:
+den blir et utkast som bare du ser, og kan slippes til testkanalen, som bare
+de med testlenken kan installere fra.
+
+**Én gang:**
+
+1. Logg inn på https://tools.developer.homey.app med Homey-kontoen din. Under
+   kontoen din (https://tools.developer.homey.app/me) lager du en
+   «Personal Access Token». Kopier den.
+2. På GitHub: repoet → Settings → Secrets and variables → Actions →
+   New repository secret. Navn: `HOMEY_PAT`, verdi: tokenet.
+3. På GitHub: Actions → «Publiser til Homey App Store» → Run workflow. Da
+   lastes første versjon opp.
+4. På https://tools.developer.homey.app → appen → den nye versjonen: slipp
+   den til Test. Der står også testlenken.
+5. Ta en sikkerhetskopi av innstillingene først (nederst på forsiden av
+   innstillingssiden). Åpne så testlenken på telefonen og installer appen.
+   Den erstatter versjonen du har installert fra PC-en.
+
+**Etterpå:** når en ny versjon er lastet opp, slipper du den til Test i
+utviklerportalen og oppdaterer appen i Homey-appen. Bruk ikke `oppdater.ps1`
+etter dette, for den installerer PC-versjonen over App Store-versjonen.
+
+Versjonsnummeret settes av GitHub (`1.1.<kjøringsnummer>`), og endringsloggen
+er commit-meldingen. Ingen av dem lagres i git, så `app.json` sier fortsatt
+`1.0.0`.
+
 ## Se loggen
 
 ```

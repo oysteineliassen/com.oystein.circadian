@@ -1,0 +1,85 @@
+name: Publiser til Homey App Store
+
+# Every change to the app itself (not README etc.) on main is tested and
+# uploaded to the Homey App Store as a new draft build. Release it to the
+# test channel at https://tools.developer.homey.app (one tap, also from a
+# phone), then update the app in the Homey app. Needs the repository secret
+# HOMEY_PAT (a Personal Access Token from https://tools.developer.homey.app/me);
+# without it this workflow only says so and stops.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app.js'
+      - 'app.json'
+      - 'api.js'
+      - 'lib/**'
+      - 'settings/**'
+      - 'assets/**'
+      - 'package.json'
+  workflow_dispatch:
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      HOMEY_PAT: ${{ secrets.HOMEY_PAT }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Sjekk at tokenet er lagt inn
+        id: token
+        run: |
+          if [ -z "$HOMEY_PAT" ]; then
+            echo "Hemmeligheten HOMEY_PAT mangler, så ingenting ble publisert. Se README («Oppdatere uten PC»)." >> "$GITHUB_STEP_SUMMARY"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Installer avhengigheter
+        if: steps.token.outputs.ok == 'true'
+        run: npm install --omit=dev
+
+      - name: Kjør tester
+        if: steps.token.outputs.ok == 'true'
+        run: node test/run-tests.js
+
+      # The App Store needs a higher version for every build, and a changelog
+      # for it. Neither is kept in git: the build number gives the version.
+      - name: Sett versjon og endringslogg
+        if: steps.token.outputs.ok == 'true'
+        id: version
+        run: |
+          VERSION="1.1.${GITHUB_RUN_NUMBER}"
+          MESSAGE="$(git log -1 --pretty=%s)"
+          VERSION="$VERSION" MESSAGE="$MESSAGE" node -e '
+            const fs = require("fs");
+            const app = JSON.parse(fs.readFileSync("app.json", "utf8"));
+            app.version = process.env.VERSION;
+            fs.writeFileSync("app.json", JSON.stringify(app, null, 2) + "\n");
+            const changelog = { [process.env.VERSION]: { en: process.env.MESSAGE, no: process.env.MESSAGE } };
+            fs.writeFileSync(".homeychangelog.json", JSON.stringify(changelog, null, 2) + "\n");
+          '
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Publiser
+        if: steps.token.outputs.ok == 'true'
+        run: HOMEY_HEADLESS=1 npx --yes homey app publish
+
+      - name: Oppsummering
+        if: steps.token.outputs.ok == 'true'
+        run: |
+          {
+            echo "Versjon ${{ steps.version.outputs.version }} er lastet opp som utkast."
+            echo ""
+            echo "Slipp den til testkanalen her (testlenken står på samme side): https://tools.developer.homey.app/apps/app/com.oystein.circadian"
+          } >> "$GITHUB_STEP_SUMMARY"
