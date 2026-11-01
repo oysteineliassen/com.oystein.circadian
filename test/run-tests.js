@@ -242,7 +242,10 @@ test('manuell justering låser lyset og kjører triggeren', async () => {
   const d = makeDevice('a', { onoff: true, dim: 0.5, light_temperature: 0.5 });
   const { app, homey } = await startApp({ devices: [d], groups: [{ id: 'g1', name: 'Stue', mode: 'keyframes', keyframes: KEYFRAMES, deviceIds: ['a'] }] });
   app._lastAppliedAt.a = 0; // utenfor tidsvinduet for appens eget ekko
-  d.report('dim', 0.8);
+  // Langt fra det appen selv skrev, ellers tolkes det (riktig) som ekkoet av
+  // appens egen skriving. Det appen skriver, avhenger av klokkeslettet.
+  const written = app._lastWritten.a && app._lastWritten.a.dim;
+  d.report('dim', written != null && written > 0.5 ? 0.15 : 0.95);
   assert.strictEqual(app.locks.a, true);
   assert.deepStrictEqual(homey.cards['light-locked'].triggered, [{ light: 'Lys a' }]);
   assert.strictEqual(await homey.cards['is-locked'].run({ device: { id: 'a' } }), true);
