@@ -50,9 +50,23 @@ function makeHomey() {
   });
   const tokens = {};
   const store = {};
+  const logs = {};
   return {
     cards,
     tokens,
+    logs,
+    insights: {
+      async getLog(id) {
+        if (!logs[id]) throw new Error('Not Found');
+        return logs[id];
+      },
+      async createLog(id, opts) {
+        logs[id] = { name: id, opts, entries: [], async createEntry(v) { this.entries.push(v); } };
+        return logs[id];
+      },
+      async getLogs() { return Object.values(logs); },
+      async deleteLog(log) { delete logs[log.name]; },
+    },
     settings: { get: (k) => store[k], set: (k, v) => { store[k] = v; } },
     flow: {
       getActionCard: card,
@@ -334,6 +348,90 @@ test('lys som er slettet i Homey hoppes over og vises som manglende', async () =
   const gone = st.groups[0].lights.find((l) => l.id === 'gone');
   assert.strictEqual(gone.missing, true);
   assert.strictEqual(st.groups[0].lights.find((l) => l.id === 'a').missing, false);
+});
+
+test('røde dager følger helgeplanen, fra kl. 12 dagen før', () => {
+  assert.deepStrictEqual(lib.easterSunday(2026), { year: 2026, month: 4, day: 5 });
+  assert.deepStrictEqual(lib.easterSunday(2027), { year: 2027, month: 3, day: 28 });
+  const holidays2026 = [];
+  for (let m = 1; m <= 12; m++) {
+    for (let d = 1; d <= 31; d++) {
+      if (new Date(Date.UTC(2026, m - 1, d)).getUTCMonth() !== m - 1) continue;
+      if (lib.isNorwegianHoliday({ year: 2026, month: m, day: d })) holidays2026.push(`${d}.${m}`);
+    }
+  }
+  assert.deepStrictEqual(holidays2026, ['1.1', '2.4', '3.4', '5.4', '6.4', '1.5', '14.5', '17.5', '24.5', '25.5', '24.12', '25.12', '26.12', '31.12']);
+  // Onsdag 13. mai 2026, kvelden før Kristi himmelfart: helgeplan fra kl. 12
+  const wed = lib.freeDays(new Date('2026-05-13T08:00:00Z'), 'Europe/Oslo');
+  assert.deepStrictEqual(wed, { today: false, tomorrow: true });
+  assert.strictEqual(lib.isWeekendAt(wed, 600), false);
+  assert.strictEqual(lib.isWeekendAt(wed, 800), true);
+  // Søndag 17. mai 2026 kveld: mandag er arbeidsdag
+  const sun17 = lib.freeDays(new Date('2026-05-17T18:00:00Z'), 'Europe/Oslo');
+  assert.strictEqual(lib.isWeekendAt(sun17, 1200), false);
+});
+
+test('fargeområde per lampe gir samme farge på ulike merker', async () => {
+  const ikea = { warmK: 2200, coolK: 4000 };
+  assert.strictEqual(lib.toDeviceTemp(1, ikea), 1);
+  assert.strictEqual(lib.toDeviceTemp(0, ikea), 0); // kaldere enn 4000 K går ikke
+  assert.strictEqual(Math.round(lib.planToKelvin(0.8)), 3060);
+  assert.ok(Math.abs(lib.toDeviceTemp(0.8, ikea) - (4000 - 3060) / 1800) < 0.001);
+  assert.strictEqual(lib.toDeviceTemp(0.4, null), 0.4);
+  assert.ok(Math.abs(lib.fromDeviceTemp(lib.toDeviceTemp(0.8, ikea), ikea) - 0.8) < 0.001);
+
+  const d = makeDevice('a', { onoff: true, dim: 0.5, light_temperature: 0.5 });
+  const kf = [{ time: '00:00', temp: 0.8, dim: 0.5 }];
+  const { app } = await startApp({ devices: [d], groups: [{ id: 'g1', name: 'Stue', mode: 'keyframes', keyframes: kf, fadeSeconds: 0, deviceIds: ['a'] }] });
+  assert.strictEqual(d.writes.find((w) => w.cap === 'light_temperature').value, 0.8, 'uten fargeområde: planens verdi');
+  app.config.calibration = { a: ikea };
+  d.writes.length = 0;
+  await app._tick();
+  const w = d.writes.find((x) => x.cap === 'light_temperature');
+  assert.ok(w && Math.abs(w.value - lib.toDeviceTemp(0.8, ikea)) < 0.001, 'med fargeområde: omregnet verdi');
+  const st = await app.getStatus();
+  assert.ok(Math.abs(st.groups[0].lights[0].temp - 0.8) < 0.01, 'status viser planens skala');
+});
+
+test('soloppgangsvekking slår på lys som er av og lar dem være i fred underveis', async () => {
+  const off = makeDevice('a', { onoff: false, dim: 0.5, light_temperature: 0.5 });
+  const on = makeDevice('b', { onoff: true, dim: 0.5, light_temperature: 0.5 });
+  const group = {
+    id: 'g1', name: 'Soverom', mode: 'keyframes', keyframes: KEYFRAMES, deviceIds: ['a', 'b'],
+    wakeUpEnabled: true, wakeUpTime: '06:50', wakeUpWeekendTime: '', wakeUpMinutes: 20,
+  };
+  const { app } = await startApp({ devices: [off, on], groups: [group] });
+  off.writes.length = 0;
+  on.writes.length = 0;
+  const now = { minutes: 400, free: { today: false, tomorrow: false }, date: { year: 2026, month: 11, day: 2 } };
+  app._checkWakeUps(now, {});
+  await wait(50);
+  assert.ok(off.writes.some((w) => w.cap === 'onoff' && w.value === true), 'lyset som var av skal slås på');
+  assert.ok(off.writes.find((w) => w.cap === 'dim').value <= 0.35, 'starter svakt');
+  assert.deepStrictEqual(on.writes, [], 'lys som allerede er på, røres ikke');
+  assert.strictEqual(app._waking.a, 'g1');
+  // Samme dag: starter ikke på nytt. Helg uten helgetid: ingen vekking.
+  const before = off.writes.length;
+  app._checkWakeUps(now, {});
+  app._checkWakeUps(Object.assign({}, now, { free: { today: true }, date: { year: 2026, month: 11, day: 7 } }), {});
+  await wait(50);
+  assert.strictEqual(off.writes.length, before);
+  // Vanlig oppdatering hopper over lyset mens det vekkes
+  off.writes.length = 0;
+  await app._tick();
+  assert.deepStrictEqual(off.writes, []);
+});
+
+test('verdiene logges til Insights, og slettede rom ryddes bort', async () => {
+  const d = makeDevice('a', { onoff: true, dim: 0.5, light_temperature: 0.5 });
+  const { app, homey } = await startApp({ devices: [d], groups: [{ id: 'g1', name: 'Stue', mode: 'keyframes', keyframes: KEYFRAMES, deviceIds: ['a'] }] });
+  await wait(20);
+  assert.deepStrictEqual(Object.keys(homey.logs).sort(), ['g1-dim', 'g1-temp']);
+  assert.ok(homey.logs['g1-temp'].entries.length > 0);
+  assert.strictEqual(homey.logs['g1-temp'].opts.units, '%');
+  app.config.groups = [];
+  await app._pruneInsights();
+  assert.deepStrictEqual(homey.logs, {});
 });
 
 test('syntaks i innstillingssiden', () => {

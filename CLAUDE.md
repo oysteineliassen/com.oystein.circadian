@@ -63,6 +63,20 @@ skriv til ham på norsk. Han utvikler på Windows og har en Homey Pro (Early 202
   ny ID). `getDevice` kaster «Not Found»; `_markIfMissing` husker dem i
   `_missing`, tick hopper over dem, og `/status` gir `missing: true`, så
   innstillingssiden kan tilby å fjerne dem. Sjekkes på nytt ved lagring.
+- **Helg/røde dager**: `freeDays()` + `isWeekendAt()` (morgen: er i dag fri?
+  fra kl. 12: er i morgen fri?). Norske helligdager inkl. julaften og
+  nyttårsaften; påske regnes ut. `isWeekendPlan(weekday, …)` finnes bare
+  for testene og gamle kall.
+- **Fargeområde** (`config.calibration[deviceId] = { warmK, coolK }`):
+  planen bruker skalaen 0 = 6500 K .. 1 = 2200 K. `toDeviceTemp()` regnes om
+  først i `_applyValuesToDevice` (og i `turnOnGroup`/vekking), så alt videre,
+  inkl. `_lastWritten` og låsdeteksjon, er i lampens egne enheter. `/status`
+  regner tilbake med `fromDeviceTemp()`.
+- **Vekking** (`_checkWakeUps` i tick, `_startWakeUp`): bare lys som er av ved
+  start; `_waking[id]` gjør at tick, påslag og låsdeteksjon lar dem være.
+  Fremdrift regnes fra starttidspunktet, ikke ved å lese klokka på nytt.
+- **Insights**: logg-ID `${groupId}-temp` / `-dim`; ryddes i `_pruneInsights`
+  ved lagring.
 - Låser: `true` = manuell (til opplåsing), `'untilOff'` = pause til lyset
   slås av.
 - `light_temperature`: 0 = kaldest, 1 = varmest. Sett `light_mode` til

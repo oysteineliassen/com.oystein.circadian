@@ -51,22 +51,121 @@ function zonedWeekday(date, timeZone) {
 }
 
 /**
- * Whether the weekend plan applies: from Friday 12:00 to Sunday 12:00. That
- * covers Friday and Saturday evening plus Saturday and Sunday morning, while
- * Sunday evening (before a work day) stays on the weekday plan. Switching at
- * noon, when both plans are normally at their daytime values, avoids a jump.
+ * Calendar date { year, month (1-12), day } as it reads on a clock in the
+ * given IANA time zone. Same fallback as zonedMinutesOfDay.
  */
+function zonedDate(date, timeZone) {
+  if (!timeZone) return { year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate() };
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone, year: 'numeric', month: 'numeric', day: 'numeric',
+  }).formatToParts(date);
+  const get = (type) => Number(parts.find((p) => p.type === type).value);
+  return { year: get('year'), month: get('month'), day: get('day') };
+}
+
+function addDays(d, n) {
+  const t = new Date(Date.UTC(d.year, d.month - 1, d.day + n));
+  return { year: t.getUTCFullYear(), month: t.getUTCMonth() + 1, day: t.getUTCDate() };
+}
+
+/** Easter Sunday of a year (Gregorian; the anonymous / Meeus algorithm). */
+function easterSunday(year) {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return { year, month, day };
+}
+
+/**
+ * Norwegian public holidays ("røde dager"), plus Christmas Eve and New
+ * Year's Eve, which most people have off too.
+ */
+function isNorwegianHoliday(d) {
+  const md = d.month * 100 + d.day;
+  if ([101, 501, 517, 1224, 1225, 1226, 1231].includes(md)) return true;
+  const easter = easterSunday(d.year);
+  return [-3, -2, 0, 1, 39, 49, 50].some((offset) => {
+    const h = addDays(easter, offset);
+    return h.month === d.month && h.day === d.day;
+  });
+}
+
+/** A day off: Saturday, Sunday or a holiday. */
+function isFreeDay(d) {
+  const weekday = new Date(Date.UTC(d.year, d.month - 1, d.day)).getUTCDay();
+  return weekday === 0 || weekday === 6 || isNorwegianHoliday(d);
+}
+
+/** Whether today and tomorrow (on the Homey's clock) are days off. */
+function freeDays(date, timeZone) {
+  const today = zonedDate(date, timeZone);
+  return { today: isFreeDay(today), tomorrow: isFreeDay(addDays(today, 1)) };
+}
+
+/**
+ * Whether the weekend plan applies: in the morning when today is a day off,
+ * and from 12:00 when tomorrow is. So it runs from Friday 12:00 to Sunday
+ * 12:00, and the same around holidays, while the evening before a work day
+ * stays on the weekday plan. Switching at noon, when both plans are normally
+ * at their daytime values, avoids a jump.
+ */
+function isWeekendAt(free, nowMinutes) {
+  return nowMinutes < 720 ? !!free.today : !!free.tomorrow;
+}
+
+/** The weekend rule from the day of the week alone (no holidays). */
 function isWeekendPlan(weekday, nowMinutes) {
-  if (weekday === 6) return true;
-  if (weekday === 5) return nowMinutes >= 720;
-  if (weekday === 0) return nowMinutes < 720;
-  return false;
+  const off = (w) => w === 0 || w === 6;
+  return isWeekendAt({ today: off(weekday), tomorrow: off((weekday + 1) % 7) }, nowMinutes);
+}
+
+/*
+ * Colour temperature. The plan works on one scale for every light: 0 =
+ * 6500 K (coldest) .. 1 = 2200 K (warmest). Lights use the same 0..1
+ * capability, but over their own range, so the same value gives different
+ * colours on different brands. A light calibrated with its range
+ * { warmK, coolK } gets the value that gives the plan's colour in kelvin,
+ * as close as its range allows. Uncalibrated lights get the plan's value.
+ */
+const REF_WARM_K = 2200;
+const REF_COOL_K = 6500;
+
+function validCalibration(cal) {
+  return !!cal && cal.warmK > 0 && cal.coolK > cal.warmK;
+}
+
+function planToKelvin(t) {
+  return REF_COOL_K - t * (REF_COOL_K - REF_WARM_K);
+}
+
+/** Plan value (0..1) -> the light_temperature to send to this light. */
+function toDeviceTemp(t, cal) {
+  if (t == null || !validCalibration(cal)) return t;
+  return clamp((cal.coolK - planToKelvin(t)) / (cal.coolK - cal.warmK), 0, 1);
+}
+
+/** A light's own light_temperature -> the plan's scale (for showing it). */
+function fromDeviceTemp(v, cal) {
+  if (v == null || !validCalibration(cal)) return v;
+  const k = cal.coolK - v * (cal.coolK - cal.warmK);
+  return clamp((REF_COOL_K - k) / (REF_COOL_K - REF_WARM_K), 0, 1);
 }
 
 /**
  * The { temp, dim } a group's schedule calls for (dim is null when the group
  * doesn't control brightness). sun: { sunriseMinutes, sunsetMinutes }, either
- * may be null. weekend: whether the weekend plan applies (see isWeekendPlan);
+ * may be null. weekend: whether the weekend plan applies (see isWeekendAt);
  * ignored unless the group has its weekend plan switched on.
  */
 function groupValues(group, nowMinutes, sun, weekend) {
@@ -202,7 +301,18 @@ function calculateKeyframeValues(nowMinutes, keyframes) {
 }
 
 const api = {
+  REF_COOL_K,
+  REF_WARM_K,
   calculateCircadianValue,
+  fromDeviceTemp,
+  planToKelvin,
+  toDeviceTemp,
+  easterSunday,
+  freeDays,
+  isFreeDay,
+  isNorwegianHoliday,
+  isWeekendAt,
+  zonedDate,
   groupValues,
   isWeekendPlan,
   zonedWeekday,

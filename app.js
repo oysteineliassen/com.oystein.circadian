@@ -4,7 +4,8 @@ const Homey = require('homey');
 const { HomeyAPI } = require('homey-api');
 const SunCalc = require('suncalc');
 const {
-  groupValues, isWeekendPlan, zonedMinutesOfDay, zonedWeekday,
+  freeDays, fromDeviceTemp, groupValues, isWeekendAt, toDeviceTemp, toMinutesFromTimeString,
+  zonedDate, zonedMinutesOfDay,
 } = require('./lib/circadian');
 
 const UPDATE_INTERVAL_MS = 2 * 60 * 1000; // recompute every 2 minutes
@@ -12,6 +13,7 @@ const LOCK_GRACE_MS = 8000; // ignore device updates for this long after we writ
 const SETTLE_MS = 3000; // wait this long and re-check "off" right before writing, to catch a just-missed off event
 const TURN_ON_DELAY_MS = 1000; // after a light switches on, give a flow time to pause it before we set values
 const MAX_FADE_SECONDS = 5; // longer fades make lights report in-between values after LOCK_GRACE_MS
+const WAKE_STEP_MS = 20000; // during a sunrise wake-up, step the lights this often
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -36,16 +38,23 @@ const DEFAULT_GROUP = {
   keyframes: [], // [{ time: 'HH:mm', temp: 0..1, dim: 0..1 }]
   skipOffLights: true,
   fadeSeconds: 2, // let lights glide to new values during the regular updates
-  // Weekend plan, Friday 12:00 to Sunday 12:00 (see isWeekendPlan)
+  // Weekend plan: from 12:00 the day before a weekend day or holiday, to 12:00 on it (see isWeekendAt)
   weekendEnabled: false,
   weekendWakeTime: '08:30',
   weekendSleepTime: '23:30',
   weekendKeyframes: [], // empty = use the weekday keyframes
+  // Sunrise wake-up: lights that are off come on very dim and warm and
+  // brighten to the plan's values at the wake time
+  wakeUpEnabled: false,
+  wakeUpTime: '06:30',
+  wakeUpWeekendTime: '', // weekends and holidays; empty = no wake-up then
+  wakeUpMinutes: 20,
 };
 
 const DEFAULT_CONFIG = {
   enabled: true,
   groups: [],
+  calibration: {}, // deviceId -> { warmK, coolK }, the light's colour temperature range
 };
 
 function makeId() {
@@ -70,6 +79,9 @@ class CircadianApp extends Homey.App {
     this._offAt = {}; // deviceId -> time we last saw the light go off
     this._turningOn = {}; // deviceId -> true while values are being set after a switch-on
     this._missing = {}; // deviceId -> true for lights in a group that Homey no longer has
+    this._waking = {}; // deviceId -> groupId while a sunrise wake-up brightens the light
+    this._wakeDone = {}; // groupId -> date key of the last wake-up started
+    this._insightLogs = {}; // log id -> Insights log
     this._status = {}; // deviceId -> { at, action, text } last thing the app did with the light
     this._tokens = {}; // token id -> { token, title }
     this._simulationRunning = false;
@@ -242,6 +254,7 @@ class CircadianApp extends Homey.App {
     await this._syncCapabilityListeners();
     await this._tick();
     await this._updateTokens();
+    await this._pruneInsights();
     return this.config;
   }
 
@@ -278,7 +291,8 @@ class CircadianApp extends Homey.App {
               name: this._deviceNames[id] || id,
               on: st && (st.onoff != null || st.dim != null) ? !this._isOffState(st) : null,
               dim: st && st.dim != null ? st.dim : null,
-              temp: st && st.light_temperature != null ? st.light_temperature : null,
+              temp: st && st.light_temperature != null ? fromDeviceTemp(st.light_temperature, this._calibration(id)) : null,
+              waking: !!this._waking[id],
               lock: lock === 'untilOff' ? 'untilOff' : (lock ? 'manual' : null),
               missing: !!this._missing[id],
               status: this._status[id] || null,
@@ -384,7 +398,7 @@ class CircadianApp extends Homey.App {
     const minutesPerStep = 1440 / steps;
 
     const sun = this._sunMinutes();
-    const weekday = zonedWeekday(new Date(), this.timeZone);
+    const free = freeDays(new Date(), this.timeZone);
 
     // Resolve devices once. After homeyApi.devices.connect() (called in onInit)
     // these objects are kept live-updated over the websocket, so reading
@@ -428,7 +442,7 @@ class CircadianApp extends Homey.App {
 
           // Simulate today: the weekend plan kicks in where it would today
           const { temp: tempValue, dim: dimValue } = groupValues(
-            group, simMinutes, sun, isWeekendPlan(weekday, simMinutes),
+            group, simMinutes, sun, isWeekendAt(free, simMinutes),
           );
 
           const hh = String(Math.floor(simMinutes / 60)).padStart(2, '0');
@@ -662,6 +676,7 @@ class CircadianApp extends Homey.App {
     // simply switching the light on or off.
     if (cap === 'onoff') return;
     if (this._simulationRunning) return;
+    if (this._waking[deviceId]) return; // the wake-up fades it; switching off still stops it
     if (prev == null || value == null) return;
     if (Math.abs(prev - value) <= 0.005) return;
     if (cap === 'dim' && (prev <= 0.01 || value <= 0.01)) return; // turning off/on, not dimming
@@ -692,6 +707,11 @@ class CircadianApp extends Homey.App {
     }
   }
 
+  /** A light's colour temperature range, if set on the settings page. */
+  _calibration(deviceId) {
+    return ((this.config && this.config.calibration) || {})[deviceId] || null;
+  }
+
   /** The enabled groups a light belongs to (the first one decides its values). */
   _groupsFor(deviceId) {
     return (this.config.groups || []).filter((g) => g && g.enabled !== false
@@ -706,7 +726,7 @@ class CircadianApp extends Homey.App {
    */
   _onSwitchedOn(deviceId) {
     if (this._simulationRunning || !this.config || this.config.enabled === false) return;
-    if (this.locks[deviceId] || this._turningOn[deviceId]) return;
+    if (this.locks[deviceId] || this._turningOn[deviceId] || this._waking[deviceId]) return;
     // Switched on by our own write (e.g. the "turn on group" flow card)
     const lastApplied = this._lastAppliedAt[deviceId];
     if (lastApplied && (Date.now() - lastApplied) < LOCK_GRACE_MS) return;
@@ -747,7 +767,8 @@ class CircadianApp extends Homey.App {
   _now() {
     const date = new Date();
     const minutes = zonedMinutesOfDay(date, this.timeZone);
-    return { minutes, weekend: isWeekendPlan(zonedWeekday(date, this.timeZone), minutes) };
+    const free = freeDays(date, this.timeZone);
+    return { minutes, free, date: zonedDate(date, this.timeZone), weekend: isWeekendAt(free, minutes) };
   }
 
   /** The { temp, dim } a group's schedule calls for right now (dim may be null). */
@@ -764,6 +785,8 @@ class CircadianApp extends Homey.App {
     const sun = this._sunMinutes();
     const now = this._now();
 
+    this._checkWakeUps(now, sun);
+
     for (const group of this.config.groups) {
       if (!group || group.enabled === false) continue;
       if (!Array.isArray(group.deviceIds) || group.deviceIds.length === 0) continue;
@@ -776,6 +799,7 @@ class CircadianApp extends Homey.App {
       await Promise.all(group.deviceIds.map((deviceId) => {
         if (this.locks[deviceId]) return null; // manually adjusted, waiting to be resumed
         if (this._missing[deviceId]) return null; // deleted or re-paired in Homey
+        if (this._waking[deviceId]) return null; // a sunrise wake-up is brightening it
         return this._applyToDevice(deviceId, tempValue, dimValue, group.skipOffLights !== false, {
           fadeMs: this._fadeMs(group),
         });
@@ -783,6 +807,144 @@ class CircadianApp extends Homey.App {
     }
 
     this._updateTokens(now, sun);
+    this._logInsights(now, sun);
+  }
+
+  // --- sunrise wake-up ---
+
+  /** Start the wake-up of any group whose wake-up window has begun. */
+  _checkWakeUps(now, sun) {
+    const dateKey = `${now.date.year}-${now.date.month}-${now.date.day}`;
+    (this.config.groups || []).forEach((group) => {
+      if (!group || group.enabled === false || !group.wakeUpEnabled) return;
+      const time = now.free.today ? group.wakeUpWeekendTime : group.wakeUpTime;
+      if (!time) return;
+      if (this._wakeDone[group.id] === dateKey) return;
+      const end = toMinutesFromTimeString(time);
+      const length = Math.max(5, Math.min(60, Number(group.wakeUpMinutes) || DEFAULT_GROUP.wakeUpMinutes));
+      if (now.minutes < end - length || now.minutes >= end) return;
+      this._wakeDone[group.id] = dateKey;
+      this._startWakeUp(group, now, end, length, sun).catch((err) => this.log('Wake-up failed:', err.message));
+    });
+  }
+
+  /**
+   * Bring the group's lights that are off up from very dim and warm to the
+   * plan's values at the wake time, a step every WAKE_STEP_MS. Lights that
+   * are already on are in use and left alone; switching a light off, or a
+   * lock, stops its wake-up.
+   */
+  async _startWakeUp(group, now, endMinutes, lengthMinutes, sun) {
+    const ids = (group.deviceIds || []).filter((id) => !this.locks[id] && !this._missing[id]
+      && this._capState[id] && this._isOffState(this._capState[id]));
+    if (ids.length === 0) return;
+    const target = groupValues(group, endMinutes, sun, isWeekendAt(now.free, endMinutes));
+    const targetDim = target.dim != null ? target.dim : 1;
+    const startedAt = Date.now();
+    ids.forEach((id) => { this._waking[id] = group.id; });
+    this.log(`Sunrise wake-up for "${group.name}": ${ids.length} light(s) until ${Math.floor(endMinutes / 60)}:${String(endMinutes % 60).padStart(2, '0')}.`);
+
+    let first = true;
+    let interval = null;
+    const finish = () => {
+      if (interval) this.homey.clearInterval(interval);
+      ids.forEach((id) => { if (this._waking[id] === group.id) delete this._waking[id]; });
+    };
+    // Progress from the time the wake-up started (it may start late, e.g.
+    // after a restart), so the ramp never depends on re-reading the clock
+    const leftAtStart = endMinutes - now.minutes;
+    const step = async () => {
+      const left = leftAtStart - (Date.now() - startedAt) / 60000;
+      const p = Math.max(0, Math.min(1, 1 - left / lengthMinutes));
+      // Brightness is perceived roughly logarithmically: start slow
+      const dim = 0.01 + (targetDim - 0.01) * p * p;
+      const temp = target.temp != null ? 1 + (target.temp - 1) * p : null;
+      const active = ids.filter((id) => this._waking[id] === group.id
+        && !this.locks[id] && (this._offAt[id] || 0) < startedAt);
+      ids.filter((id) => !active.includes(id) && this._waking[id] === group.id).forEach((id) => { delete this._waking[id]; });
+      await Promise.all(active.map((id) => this._wakeStep(id, temp, dim, first)));
+      first = false;
+      if (p >= 1 || active.length === 0) finish();
+    };
+    interval = this.homey.setInterval(() => step().catch((err) => this.log('Wake-up step failed:', err.message)), WAKE_STEP_MS);
+    await step();
+  }
+
+  async _wakeStep(deviceId, temp, dim, switchOn) {
+    try {
+      const device = await this.homeyApi.devices.getDevice({ id: deviceId });
+      if (!device || !device.capabilitiesObj) return;
+      const caps = device.capabilitiesObj;
+      const opts = switchOn ? undefined : { duration: WAKE_STEP_MS - 2000 };
+      this._lastAppliedAt[deviceId] = Date.now();
+      const written = this._lastWritten[deviceId] || (this._lastWritten[deviceId] = {});
+      if (caps.dim) {
+        written.dim = dim;
+        await device.setCapabilityValue('dim', dim, opts);
+      }
+      if (temp != null && caps.light_temperature) {
+        if (switchOn && caps.light_mode && caps.light_mode.value !== 'temperature') {
+          await device.setCapabilityValue('light_mode', 'temperature').catch(() => {});
+        }
+        const v = toDeviceTemp(temp, this._calibration(deviceId));
+        written.light_temperature = v;
+        await device.setCapabilityValue('light_temperature', v, opts);
+      }
+      if (switchOn && caps.onoff) await device.setCapabilityValue('onoff', true);
+      this._lastAppliedAt[deviceId] = Date.now();
+      this._noteStatus(deviceId, 'ok', 'Soloppgangsvekking', { temp, dim });
+    } catch (err) {
+      if (this._markIfMissing(deviceId, err)) return;
+      this.log(`Wake-up step failed for ${deviceId}:`, err.message);
+    }
+  }
+
+  // --- Homey Insights ---
+
+  /** Log each enabled group's values, as percentages, for Homey's Insights graphs. */
+  async _logInsights(now, sun) {
+    try {
+      for (const g of this.config.groups || []) {
+        if (!g || !g.id || g.enabled === false) continue;
+        const v = groupValues(g, now.minutes, sun, now.weekend);
+        const name = g.name || 'Uten navn';
+        if (v.temp != null) await (await this._insightLog(`${g.id}-temp`, `${name}: varme`)).createEntry(Math.round(v.temp * 100));
+        if (v.dim != null) await (await this._insightLog(`${g.id}-dim`, `${name}: lysstyrke`)).createEntry(Math.round(v.dim * 100));
+      }
+    } catch (err) {
+      this.log('Could not log to Insights:', err.message);
+    }
+  }
+
+  async _insightLog(id, title) {
+    if (this._insightLogs[id]) return this._insightLogs[id];
+    let log;
+    try {
+      log = await this.homey.insights.getLog(id);
+    } catch (err) {
+      log = await this.homey.insights.createLog(id, {
+        title: { en: title, no: title }, type: 'number', units: '%', decimals: 0,
+      });
+    }
+    this._insightLogs[id] = log;
+    return log;
+  }
+
+  /** Remove the Insights logs of deleted groups. */
+  async _pruneInsights() {
+    try {
+      const wanted = new Set();
+      (this.config.groups || []).forEach((g) => { if (g && g.id) { wanted.add(`${g.id}-temp`); wanted.add(`${g.id}-dim`); } });
+      const logs = await this.homey.insights.getLogs();
+      for (const log of logs || []) {
+        const id = log.name || log.id;
+        if (wanted.has(id)) continue;
+        delete this._insightLogs[id];
+        await this.homey.insights.deleteLog(log);
+      }
+    } catch (err) {
+      this.log('Could not tidy Insights logs:', err.message);
+    }
   }
 
   _fadeMs(group) {
@@ -833,8 +995,9 @@ class CircadianApp extends Homey.App {
             await device.setCapabilityValue('light_mode', 'temperature')
               .catch((err) => this.log(`Could not set light_mode on ${deviceId}:`, err.message));
           }
-          written.light_temperature = temp;
-          await device.setCapabilityValue('light_temperature', temp)
+          const deviceTemp = toDeviceTemp(temp, this._calibration(deviceId));
+          written.light_temperature = deviceTemp;
+          await device.setCapabilityValue('light_temperature', deviceTemp)
             .catch((err) => this.log(`Could not set light_temperature on ${deviceId}:`, err.message));
         }
         if (caps.onoff) {
@@ -887,6 +1050,8 @@ class CircadianApp extends Homey.App {
       if (!device || !device.capabilitiesObj) return;
 
       const name = device.name || deviceId;
+      // From here on, colour temperature is in the light's own units
+      value = toDeviceTemp(value, this._calibration(deviceId));
 
       // Prefer the live state kept by our capability listeners; fall back to
       // the device object only for lights we aren't listening to (yet).
