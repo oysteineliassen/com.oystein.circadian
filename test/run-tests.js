@@ -168,9 +168,12 @@ function makeApi(devices) {
     insights: {
       // Only the room "g1" has logs, and no light sensor
       async getLogEntries({ id, resolution }) {
-        const m = /^homey:app:com\.oystein\.circadian:(g1)-(temp|dim)$/.exec(id);
+        // An old "dim" log at 10:00 and the new "plan-dim" at 10:05
+        const m = /^homey:app:com\.oystein\.circadian:(g1)-(temp|dim|plan-dim|actual-dim)$/.exec(id);
         if (!m) throw new Error('Not Found');
-        return { values: [{ t: '2026-11-01T10:00:00.000Z', v: m[2] === 'temp' ? 20 : 80 }, { t: '2026-11-01T10:05:00.000Z', v: null }], resolution };
+        const at = m[2] === 'plan-dim' || m[2] === 'actual-dim' ? '2026-11-01T10:05:00.000Z' : '2026-11-01T10:00:00.000Z';
+        const v = { temp: 20, dim: 80, 'plan-dim': 70, 'actual-dim': 0 }[m[2]];
+        return { values: [{ t: at, v }, { t: '2026-11-01T10:10:00.000Z', v: null }], resolution };
       },
     },
   };
@@ -452,9 +455,20 @@ test('verdiene logges til Insights, og slettede rom ryddes bort', async () => {
   const d = makeDevice('a', { onoff: true, dim: 0.5, light_temperature: 0.5 });
   const { app, homey } = await startApp({ devices: [d], groups: [{ id: 'g1', name: 'Stue', mode: 'keyframes', keyframes: KEYFRAMES, deviceIds: ['a'] }] });
   await wait(20);
-  assert.deepStrictEqual(Object.keys(homey.logs).sort(), ['g1-dim', 'g1-temp']);
-  assert.ok(homey.logs['g1-temp'].entries.length > 0);
-  assert.strictEqual(homey.logs['g1-temp'].opts.units, '%');
+  assert.deepStrictEqual(Object.keys(homey.logs).sort(), ['g1-actual-dim', 'g1-plan-dim', 'g1-plan-temp']);
+  assert.ok(homey.logs['g1-plan-temp'].entries.length > 0);
+  assert.strictEqual(homey.logs['g1-plan-temp'].opts.units, '%');
+  assert.deepStrictEqual(homey.logs['g1-plan-dim'].opts.title, { en: 'Stue: brightness (plan)', no: 'Stue: lysstyrke (plan)' });
+  // Faktisk lysstyrke: snittet av lysene som er på, 0 når alle er av
+  const actual = homey.logs['g1-actual-dim'].entries;
+  assert.ok(actual[actual.length - 1] > 0, 'lyset er på');
+  d.report('onoff', false);
+  await app._logInsights(app._now(), {});
+  assert.strictEqual(actual[actual.length - 1], 0, 'alle lys av gir 0, uansett hva planen sier');
+  // Logger av den gamle typen fjernes ved lagring
+  homey.logs['g1-dim'] = { name: 'g1-dim' };
+  await app._pruneInsights();
+  assert.ok(!homey.logs['g1-dim'] && homey.logs['g1-plan-dim']);
   app.config.groups = [];
   await app._pruneInsights();
   assert.deepStrictEqual(homey.logs, {});
@@ -532,9 +546,10 @@ test('historikk hentes fra appens Insights-logger', async () => {
   const d = makeDevice('a', { onoff: true, dim: 0.5, light_temperature: 0.5 });
   const { app } = await startApp({ devices: [d], groups: [{ id: 'g1', name: 'Stue', mode: 'keyframes', keyframes: KEYFRAMES, deviceIds: ['a'] }] });
   const h = await app.getHistory('g1', 'day');
-  const t = Date.parse('2026-11-01T10:00:00.000Z');
-  assert.deepStrictEqual(h, { range: 'day', temp: [[t, 20]], dim: [[t, 80]], lux: [] });
-  assert.deepStrictEqual(await app.getHistory('ukjent', 'week'), { range: 'week', temp: [], dim: [], lux: [] });
+  const t0 = Date.parse('2026-11-01T10:00:00.000Z');
+  const t1 = Date.parse('2026-11-01T10:05:00.000Z');
+  assert.deepStrictEqual(h, { range: 'day', temp: [[t0, 20]], dim: [[t0, 80], [t1, 70]], actual: [[t1, 0]], lux: [] });
+  assert.deepStrictEqual(await app.getHistory('ukjent', 'week'), { range: 'week', temp: [], dim: [], actual: [], lux: [] });
 });
 
 test('språkfilene har de samme tekstene, og alle som brukes finnes', () => {

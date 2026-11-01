@@ -72,8 +72,9 @@ solnedgang, eller egne sjekkpunkter på en 24-timers klokke.
 - **Sikkerhetskopi**: nederst på forsiden kan du kopiere alle innstillingene
   som tekst og gjenopprette dem senere, f.eks. etter at appen er installert
   på nytt.
-- **Historikk**: varme og lysstyrke lysene fikk (med dagslys regnet inn),
-  og målt dagslys, logges hvert 2. minutt. Grafen ligger på rommets side
+- **Historikk**: det planen ber om (varme og lysstyrke, med dagslys regnet
+  inn), lysstyrken lysene faktisk har (snittet av de som er på, 0 når alle er
+  av), og målt dagslys, logges hvert 2. minutt. Grafen ligger på rommets side
   («Historikk», siste døgn eller uke), og de samme tallene finnes i Homey
   under Insights.
 

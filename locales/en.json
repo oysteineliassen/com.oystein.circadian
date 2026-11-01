@@ -103,7 +103,7 @@
     "lastWeek": "Last week",
     "loading": "Loading...",
     "noHistory": "No history yet. The app logs every 2 minutes while the rhythm is on, so the graph fills up over time.",
-    "historyHint": "The height is the brightness the lights were given, and the colour is the light colour. Drag a finger across the graph to see the values. The same numbers are in Homey under Insights.",
+    "historyHint": "The area is what the plan asks for (its colour is the light colour), the line is the average of the lights that are actually on, and 0 when all are off. Drag a finger across the graph to see the values. The same numbers are in Homey under Insights.",
     "historyFailed": "Could not load history: ",
     "historyLabel": "Brightness and light colour ",
     "lastDayLower": "last day",
@@ -199,7 +199,11 @@
     "eg4000": "e.g. 4000",
     "stopping": "Stopping...",
     "notifyProblems": "Notify in Homey when something is wrong",
-    "notifyProblemsHint": "A message in Homey’s timeline when a light no longer exists, a light sensor has stopped measuring, or a light cannot be updated. Each problem is told once."
+    "notifyProblemsHint": "A message in Homey’s timeline when a light no longer exists, a light sensor has stopped measuring, or a light cannot be updated. Each problem is told once.",
+    "legendPlan": "Plan",
+    "legendActual": "Actual",
+    "planBold": "plan <b>",
+    "actualBold": "actual <b>"
   },
   "app": {
     "unnamed": "Unnamed",
@@ -211,8 +215,6 @@
     "defaultGroupName": "Default",
     "tokenWarmth": "{name}: warmth (%)",
     "tokenBrightness": "{name}: brightness (%)",
-    "insightWarmth": "{name}: warmth",
-    "insightBrightness": "{name}: brightness",
     "insightDaylight": "{name}: daylight",
     "statusMissing": "No longer exists in Homey",
     "statusLocked": "Locked after a manual adjustment",
@@ -225,6 +227,9 @@
     "statusOffAgain": "Switched off while the app was writing, switched off again",
     "notifyMissing": "A light in {room} no longer exists in Homey (deleted, or re-paired and given a new ID). Remove it from the room, and choose the new one, in the Daylight Rhythm settings.",
     "notifySensor": "The light sensor {sensor} has measured nothing for over a day. Check its battery. Until it measures again, the lights in {room} get the plan’s brightness without daylight adjustment.",
-    "notifyFailing": "{light} in {room} could not be updated {n} times in a row. Check that the light is available in Homey."
+    "notifyFailing": "{light} in {room} could not be updated {n} times in a row. Check that the light is available in Homey.",
+    "insightPlanWarmth": "{name}: warmth (plan)",
+    "insightPlanBrightness": "{name}: brightness (plan)",
+    "insightActualBrightness": "{name}: brightness (actual)"
   }
 }

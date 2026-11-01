@@ -103,7 +103,7 @@
     "lastWeek": "Siste uke",
     "loading": "Henter...",
     "noHistory": "Ingen historikk ennå. Appen logger hvert 2. minutt mens døgnrytmen er på, så grafen fylles etter hvert.",
-    "historyHint": "Høyden er lysstyrken lysene fikk, og fargen er lysfargen. Dra fingeren over grafen for å se verdiene. De samme tallene finnes i Homey under Insights.",
+    "historyHint": "Flaten er det planen ber om (fargen er lysfargen), linjen er snittet av lysene som faktisk er på, og 0 når alle er av. Dra fingeren over grafen for å se verdiene. De samme tallene finnes i Homey under Insights.",
     "historyFailed": "Kunne ikke hente historikk: ",
     "historyLabel": "Lysstyrke og lysfarge ",
     "lastDayLower": "siste døgn",
@@ -199,7 +199,11 @@
     "eg4000": "f.eks. 4000",
     "stopping": "Stopper...",
     "notifyProblems": "Varsle i Homey når noe er galt",
-    "notifyProblemsHint": "En melding i Homeys tidslinje når et lys ikke finnes lenger, en lyssensor har sluttet å måle, eller et lys ikke lar seg oppdatere. Hvert problem varsles én gang."
+    "notifyProblemsHint": "En melding i Homeys tidslinje når et lys ikke finnes lenger, en lyssensor har sluttet å måle, eller et lys ikke lar seg oppdatere. Hvert problem varsles én gang.",
+    "legendPlan": "Plan",
+    "legendActual": "Faktisk",
+    "planBold": "plan <b>",
+    "actualBold": "faktisk <b>"
   },
   "app": {
     "unnamed": "Uten navn",
@@ -211,8 +215,6 @@
     "defaultGroupName": "Standard",
     "tokenWarmth": "{name}: varme (%)",
     "tokenBrightness": "{name}: lysstyrke (%)",
-    "insightWarmth": "{name}: varme",
-    "insightBrightness": "{name}: lysstyrke",
     "insightDaylight": "{name}: dagslys",
     "statusMissing": "Finnes ikke lenger i Homey",
     "statusLocked": "Låst etter manuell justering",
@@ -225,6 +227,9 @@
     "statusOffAgain": "Slått av mens appen skrev, slått av igjen",
     "notifyMissing": "Et lys i {room} finnes ikke lenger i Homey (slettet, eller paret på nytt og fått ny ID). Fjern det fra rommet, og velg det nye, i innstillingene for Daylight Rhythm.",
     "notifySensor": "Lyssensoren {sensor} har ikke målt noe på over et døgn. Sjekk batteriet. Til den måler igjen, får lysene i {room} planens lysstyrke uten justering for dagslys.",
-    "notifyFailing": "{light} i {room} har ikke latt seg oppdatere {n} ganger på rad. Sjekk at lyset er tilgjengelig i Homey."
+    "notifyFailing": "{light} i {room} har ikke latt seg oppdatere {n} ganger på rad. Sjekk at lyset er tilgjengelig i Homey.",
+    "insightPlanWarmth": "{name}: varme (plan)",
+    "insightPlanBrightness": "{name}: lysstyrke (plan)",
+    "insightActualBrightness": "{name}: lysstyrke (faktisk)"
   }
 }
