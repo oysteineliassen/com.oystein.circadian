@@ -69,7 +69,7 @@
     }
 
     * { box-sizing: border-box; }
-    body { margin: 0; padding: 12px 12px 88px; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; font-size: 15px; line-height: 1.4; background: var(--bg); color: var(--text); }
+    body { margin: 0; padding: 12px; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; font-size: 15px; line-height: 1.4; background: var(--bg); color: var(--text); }
     html body h1, html body h2, html body h3 { margin: 0 !important; padding: 0 !important; color: var(--text) !important; font-family: inherit !important; font-weight: 700 !important; line-height: 1.25 !important; text-transform: none !important; letter-spacing: normal !important; }
     html body h1 { font-size: 22px !important; }
     html body h3 { font-size: 13px !important; color: var(--muted) !important; font-weight: 600 !important; text-transform: uppercase !important; letter-spacing: .04em !important; }
@@ -169,6 +169,11 @@
     .history-readout b { color: var(--text); font-variant-numeric: tabular-nums; }
 
     /* Save bar */
+    /* Room for the last section to scroll up above the fixed save bar. A
+       spacer inside the content, since Homey's app may override the body's
+       own padding. */
+    #app::after { content: ""; display: block; height: calc(96px + env(safe-area-inset-bottom, 0px)); }
+    .savebar { padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)) !important; }
     .savebar { position: fixed; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface); border-top: 1px solid var(--border); }
     .savebar .msg { flex: 1; font-size: 13px; color: var(--muted); }
     .savebar .msg.dirty { color: var(--warn); }
