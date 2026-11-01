@@ -17,6 +17,7 @@ on:
       - 'settings/**'
       - 'assets/**'
       - 'package.json'
+      - 'README*.txt'
   workflow_dispatch:
 
 concurrency:
