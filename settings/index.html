@@ -483,6 +483,11 @@
       return h('div', { class: 'section' }, [
         h('div', { class: 'row' }, [h('label', { for: 'holidays', text: tr('settings.holidays') }), select]),
         h('p', { class: 'hint', text: tr('settings.holidaysHint') }),
+        h('div', { class: 'row', style: 'border-top: 1px solid var(--border-soft); padding-top: 8px' }, [
+          h('label', { text: tr('settings.notifyProblems') }),
+          switchButton(config.notifyProblems !== false, tr('settings.notifyProblems'), (on) => { config.notifyProblems = on; save(); }),
+        ]),
+        h('p', { class: 'hint', text: tr('settings.notifyProblemsHint') }),
       ]);
     }
 

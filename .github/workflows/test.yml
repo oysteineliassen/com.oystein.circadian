@@ -21,7 +21,7 @@ jobs:
         run: |
           node --check app.js
           node --check api.js
-          node --check lib/circadian.js
+          for f in lib/*.js; do node --check "$f"; done
           node --check settings/circadian.js
       - name: Kjør tester
         run: node test/run-tests.js

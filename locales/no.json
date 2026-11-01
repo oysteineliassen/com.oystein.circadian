@@ -197,7 +197,9 @@
     "sunriseWakeUp": "Soloppgangsvekking",
     "eg2200": "f.eks. 2200",
     "eg4000": "f.eks. 4000",
-    "stopping": "Stopper..."
+    "stopping": "Stopper...",
+    "notifyProblems": "Varsle i Homey når noe er galt",
+    "notifyProblemsHint": "En melding i Homeys tidslinje når et lys ikke finnes lenger, en lyssensor har sluttet å måle, eller et lys ikke lar seg oppdatere. Hvert problem varsles én gang."
   },
   "app": {
     "unnamed": "Uten navn",
@@ -220,6 +222,9 @@
     "statusStale": "Av (appen trodde den var på, rettet opp)",
     "statusFollowing": "Følger døgnrytmen",
     "statusSetOnSwitchOn": "Satt ved påslag",
-    "statusOffAgain": "Slått av mens appen skrev, slått av igjen"
+    "statusOffAgain": "Slått av mens appen skrev, slått av igjen",
+    "notifyMissing": "Et lys i {room} finnes ikke lenger i Homey (slettet, eller paret på nytt og fått ny ID). Fjern det fra rommet, og velg det nye, i innstillingene for Daylight Rhythm.",
+    "notifySensor": "Lyssensoren {sensor} har ikke målt noe på over et døgn. Sjekk batteriet. Til den måler igjen, får lysene i {room} planens lysstyrke uten justering for dagslys.",
+    "notifyFailing": "{light} i {room} har ikke latt seg oppdatere {n} ganger på rad. Sjekk at lyset er tilgjengelig i Homey."
   }
 }

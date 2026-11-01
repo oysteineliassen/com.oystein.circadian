@@ -27,8 +27,20 @@ skriv til ham på norsk. Han utvikler på Windows og har en Homey Pro (Early 202
 
 ## Filer
 
-- `app.js`: all logikk. Tick hvert 2. minutt, gruppeverdier, skriving til lys,
-  låser, simulering, Flow-kort.
+- `app.js`: oppstart, innstillinger/API, status og hovedløkka (`_tick` hvert
+  2. minutt, `_groupTarget`). Resten av appens metoder ligger i `lib/` etter
+  tema, og legges på app-klassen nederst i `app.js` (`Object.assign` på
+  prototypen), så `this` er appen overalt:
+  - `lib/lights.js`: lytting på lysene, låser/manuell justering, påslag, lys
+    som mangler.
+  - `lib/writing.js`: skriving til lys (`_applyValuesToDevice`), «slå på
+    gruppe», status per lys (`_noteStatus`).
+  - `lib/flow.js`: Flow-kort og tokens. `lib/simulation.js`: simulering.
+  - `lib/daylight.js`, `lib/wakeup.js`, `lib/testcolor.js`, `lib/insights.js`.
+  - `lib/notifications.js`: varsler i Homeys tidslinje.
+  - `lib/shared.js`: konstanter, standardverdier og små hjelpere.
+  Ny metode: legg den i filen for temaet; ny fil: legg navnet i lista nederst
+  i `app.js`.
 - `settings/circadian.js`: rene funksjoner på "minutter siden midnatt"
   (0–1439), inkl. `groupValues()` og helgeregelen. Brukes av appen (via
   `lib/circadian.js`, som bare re-eksporterer) OG av innstillingssiden
@@ -111,6 +123,12 @@ skriv til ham på norsk. Han utvikler på Windows og har en Homey Pro (Early 202
   låsdeteksjon hopper over lys som testes (`_isTesting`).
 - Den falske Homey-en i testene må ha alt appen bruker (`setTimeout`,
   `clearTimeout`, `insights` …): mangler noe, feiler appen bare i testen.
+- **Varsler** (`lib/notifications.js`): `_notifyProblem(key, tekst)` sender
+  én melding per problem og husker det i innstillingen `notified` (også over
+  omstart); `_clearProblem(key)` når det er løst. Nøkler: `missing:<id>`,
+  `failing:<id>` (3 feil på rad, telles i `_noteStatus`), `sensor:<id>`
+  (stille i over et døgn; da brukes heller ikke målingen, se `_luxNow`).
+  Kan skrus av med `config.notifyProblems`.
 - **Insights**: logg-ID `${groupId}-temp` / `-dim` / `-lux`, med verdiene
   lysene faktisk får (`_groupTarget`). Ryddes i `_pruneInsights` ved lagring.
   Historikkgrafen leser dem tilbake med

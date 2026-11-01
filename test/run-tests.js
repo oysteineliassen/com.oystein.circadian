@@ -37,6 +37,12 @@ Object.keys(fakes).forEach((name) => {
 const CircadianApp = require(path.join(ROOT, 'app.js'));
 const lib = require(path.join(ROOT, 'lib/circadian.js'));
 
+// The app's code: app.js and the methods it gets from lib/
+function allAppSource() {
+  return ['app.js', ...fs.readdirSync(path.join(ROOT, 'lib')).map((f) => path.join('lib', f))]
+    .map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8')).join('\n');
+}
+
 const LOCALES = {
   en: JSON.parse(fs.readFileSync(path.join(ROOT, 'locales/en.json'), 'utf8')),
   no: JSON.parse(fs.readFileSync(path.join(ROOT, 'locales/no.json'), 'utf8')),
@@ -62,6 +68,8 @@ function makeHomey(lang = 'no') {
     tokens,
     logs,
     __: (key) => lookup(lang, key) || key,
+    notices: [],
+    notifications: { async createNotification({ excerpt }) { this.parent.notices.push(excerpt); } },
     i18n: { getLanguage: () => lang },
     insights: {
       async getLog(id) {
@@ -176,6 +184,7 @@ const KEYFRAMES = [
 async function startApp({ devices, groups, locks, lang, config }) {
   currentApi = makeApi(devices);
   const homey = makeHomey(lang);
+  homey.notifications.parent = homey;
   if (config !== null) homey.settings.set('config', Object.assign({ enabled: true, groups }, config || {}));
   if (locks) homey.settings.set('locks', locks);
   const app = new CircadianApp();
@@ -320,11 +329,11 @@ test('status viser lys, lås og siste handling', async () => {
 
 test('alle Flow-kort og API-ruter i app.json finnes i koden', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'app.json'), 'utf8'));
-  const appSrc = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+  const appSrc = allAppSource();
   const api = require(path.join(ROOT, 'api.js'));
   ['triggers', 'conditions', 'actions'].forEach((kind) => {
     (manifest.flow[kind] || []).forEach((card) => {
-      assert.ok(appSrc.includes(`'${card.id}'`), `Flow-kortet ${card.id} brukes ikke i app.js`);
+      assert.ok(appSrc.includes(`'${card.id}'`), `Flow-kortet ${card.id} brukes ikke i app.js eller lib/`);
     });
   });
   Object.keys(manifest.api).forEach((name) => {
@@ -532,7 +541,7 @@ test('språkfilene har de samme tekstene, og alle som brukes finnes', () => {
   const flat = (o, prefix = '') => Object.entries(o).flatMap(([k, v]) => (typeof v === 'object' ? flat(v, prefix + k + '.') : [prefix + k]));
   assert.deepStrictEqual(flat(LOCALES.no).sort(), flat(LOCALES.en).sort(), 'en.json og no.json har ulike nøkler');
   const html = fs.readFileSync(path.join(ROOT, 'settings/index.html'), 'utf8');
-  const appSrc = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+  const appSrc = allAppSource();
   const used = [...html.matchAll(/tr\('(settings\.[A-Za-z0-9]+)'/g), ...appSrc.matchAll(/_t(?:itles)?\('(app\.[A-Za-z0-9]+)'/g)].map((m) => m[1]);
   const missing = [...new Set(used)].filter((k) => !lookup('en', k));
   assert.deepStrictEqual(missing, [], 'nøkler som brukes, men mangler i språkfilene');
@@ -561,6 +570,41 @@ test('eksisterende oppsett beholder norske røde dager, nye på norsk får dem',
   assert.strictEqual(fresh.app.config.holidays, 'NO');
   const freshEn = await startApp({ devices: [d], groups: [], lang: 'en', config: null });
   assert.strictEqual(freshEn.app.config.holidays, 'none');
+});
+
+test('varsel i Homey: lys som mangler, sensor som er stille, lys som ikke lar seg oppdatere', async () => {
+  const ok = makeDevice('a', { onoff: true, dim: 0.5, light_temperature: 0.5 });
+  const broken = makeDevice('b', { onoff: true, dim: 0.5, light_temperature: 0.5 });
+  broken.setCapabilityValue = async () => { throw new Error('Timeout'); };
+  const sensor = makeDevice('s', { measure_luminance: 300 });
+  const { app, homey } = await startApp({
+    devices: [ok, broken, sensor],
+    groups: [{ id: 'g1', name: 'Stue', mode: 'keyframes', keyframes: KEYFRAMES, deviceIds: ['a', 'b', 'gone'], luxEnabled: true, luxSensorId: 's' }],
+  });
+  assert.strictEqual(homey.notices.filter((n) => n.includes('finnes ikke lenger')).length, 1, 'lyset som mangler varsles én gang');
+  await app._tick();
+  await app._tick();
+  assert.strictEqual(homey.notices.filter((n) => n.includes('finnes ikke lenger')).length, 1, 'og ikke igjen');
+  assert.strictEqual(homey.notices.filter((n) => n.includes('Lys b i Stue har ikke latt seg oppdatere 3 ganger')).length, 1, 'feilende lys etter 3 forsøk');
+  // Etter en omstart huskes det som er varslet
+  assert.ok(homey.settings.get('notified')['missing:gone']);
+
+  // Sensoren har vært stille i over et døgn
+  app._luxReadings.s = [{ t: Date.now() - 25 * 3600 * 1000, v: 300 }];
+  assert.strictEqual(app._luxNow('s'), null, 'gammel måling brukes ikke');
+  app._checkSensors();
+  await wait(10); // the message is sent in the background
+  assert.ok(homey.notices.some((n) => n.startsWith('Lyssensoren Lys s har ikke målt noe')));
+  // Den måler igjen: problemet er løst og kan varsles på nytt senere
+  sensor.report('measure_luminance', 120);
+  app._checkSensors();
+  assert.ok(!app._notified['sensor:s']);
+
+  // Varsler kan skrus av
+  app.config.notifyProblems = false;
+  const before = homey.notices.length;
+  app._notifyProblem('test', 'x');
+  assert.strictEqual(homey.notices.length, before);
 });
 
 test('syntaks i innstillingssiden', () => {
