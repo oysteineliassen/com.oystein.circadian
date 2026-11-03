@@ -439,19 +439,25 @@
     // The lights get their values within a second or two; then the status is
     // fetched again so the page shows them.
     const UNLOCK_MS = 2000;
-    let unlocking = false;
+    const unlockingIds = new Set(); // lights being unlocked right now ('*' = all)
     function unlock(deviceId, ringHost, ringSize) {
-      if (unlocking) return Promise.resolve();
-      unlocking = true;
+      const key = deviceId || '*';
+      if (unlockingIds.has(key)) return Promise.resolve(); // a second tap on the same light
+      unlockingIds.add(key);
       const request = deviceId
         ? HomeyRef.api('POST', '/resume', { deviceId })
         : HomeyRef.api('POST', '/resume-all');
       return Promise.all([request, progressRing(ringHost, UNLOCK_MS, ringSize)])
         .then(() => { devices.forEach((d) => { if (!deviceId || d.id === deviceId) d.locked = false; }); })
-        .then(loadStatus)
-        .then(render)
         .catch((err) => updateSaveBar(tr('settings.resumeFailed') + (err && err.message ? err.message : err), 'dirty'))
-        .then(() => { unlocking = false; });
+        .then(() => {
+          unlockingIds.delete(key);
+          // Several lights can be unlocked one after another without waiting.
+          // Redraw once, after the last: redrawing earlier would cut off the
+          // other rings.
+          if (unlockingIds.size === 0) return loadStatus().then(render);
+          return null;
+        });
     }
 
     function reportedText(ts) {

@@ -153,7 +153,9 @@ skriv til ham på norsk. Han utvikler på Windows og har en Homey Pro (Early 202
 - **Lås opp** (`resumeDevice`/`resumeAll`) kjører ikke hele `_tick`, men
   `_applyNowTo(ids)`: bare de lysene, med `quick: true` (ingen settle-vent),
   og uten at kallet venter på lysene. Innstillingssiden viser en ring som
-  tømmes én gang (`progressRing`, ikke en spinner) og henter status etterpå.
+  tømmes én gang (`progressRing`, ikke en spinner). Flere lys kan låses opp
+  rett etter hverandre (`unlockingIds`); siden hentes og tegnes på nytt først
+  når den siste ringen er ferdig, ellers kuttes de andre ringene.
 - **Siste melding** (`_reportedAt`, satt i `_onCapabilityChange`) vises som
   «endret kl. …» per lys. Endrer den seg ikke etter bruk av fjernkontroll, har
   ikke Homey fått beskjed (lysets egen app har mistet kontakten; f.eks. Plejd
