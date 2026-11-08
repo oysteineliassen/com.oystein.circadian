@@ -23,6 +23,10 @@ skriv til ham på norsk. Han utvikler på Windows og har en Homey Pro (Early 202
   action krever `package-lock.json`, som er utelatt med vilje). Commit-
   meldingen blir endringsloggen i App Store: første linje på engelsk, og en
   linje `NO: …` med norsk tekst (ellers brukes den engelske for norsk også).
+- **Offentlig publisering er droppet.** Athom avviste appen i november 2026
+  fordi den ligner Adaptive Lighting (`tv.waldoandfriends.adaptive-lighting`),
+  og Øystein valgte å la det ligge. Appen brukes via testkanalen. Ikke foreslå
+  å sende den til godkjenning igjen med mindre han tar det opp selv.
 - Hold `README.md` oppdatert når funksjoner eller Flow-kort endres.
 
 ## Filer
