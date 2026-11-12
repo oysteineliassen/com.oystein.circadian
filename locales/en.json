@@ -205,7 +205,16 @@
     "planBold": "plan <b>",
     "actualBold": "actual <b>",
     "actualWarmthBold": "actual warmth <b>",
-    "changedAt": "changed {time}"
+    "changedAt": "changed {time}",
+    "pauses": "Pauses",
+    "pauseAdd": "+ Add pause",
+    "pauseFrom": "Pause from",
+    "pauseTo": "Pause until",
+    "pauseDelete": "Remove the pause",
+    "pauseHint": "During these times the app leaves the lights in the room completely alone, every day. Lights you adjust yourself during a pause are not locked. When the pause is over, the lights follow the plan again at the next update. A pause can cross midnight.",
+    "pauseNone": "No pauses. The app controls the room all day.",
+    "pausedUntil": "paused until {time}",
+    "pausedSuffix": " · paused"
   },
   "app": {
     "unnamed": "Unnamed",

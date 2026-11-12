@@ -7,7 +7,7 @@ const {
   UPDATE_INTERVAL_MS, LUX_DIM_TOLERANCE, DEFAULT_GROUP, DEFAULT_CONFIG, LOCALES, fill, makeId,
 } = require('./lib/shared');
 const {
-  freeDays, fromDeviceTemp, groupValues, isWeekendAt, luxFactor, zonedDate, zonedMinutesOfDay,
+  freeDays, fromDeviceTemp, groupValues, isWeekendAt, luxFactor, zonedDate, zonedMinutesOfDay, pausedAt,
 } = require('./lib/circadian');
 
 class CircadianApp extends Homey.App {
@@ -227,12 +227,18 @@ class CircadianApp extends Homey.App {
     ids.forEach((id) => {
       if (this._missing[id] || this._waking[id] || this._isTesting(id)) return;
       const group = this._groupsFor(id)[0];
-      if (!group) return;
+      if (!group || pausedAt(group, now.minutes)) return;
       const target = this._groupTarget(group, now, sun);
       this._applyToDevice(id, target.temp, target.dim, group.skipOffLights !== false, {
         quick: true, dimTolerance: target.dimTolerance,
       }).catch((err) => this.log(`Could not update ${id} after unlocking:`, err.message));
     });
+  }
+
+  /** Whether the light's room is in one of its pauses right now. */
+  _isPausedNow(deviceId) {
+    const group = this._groupsFor(deviceId)[0];
+    return !!(group && pausedAt(group, this._now().minutes));
   }
 
   // --- core loop ---
@@ -302,6 +308,7 @@ class CircadianApp extends Homey.App {
     for (const group of this.config.groups) {
       if (!group || group.enabled === false) continue;
       if (!Array.isArray(group.deviceIds) || group.deviceIds.length === 0) continue;
+      if (pausedAt(group, now.minutes)) continue; // a pause set for this time of day
 
       const { temp: tempValue, dim: dimValue, dimTolerance } = this._groupTarget(group, now, sun);
 

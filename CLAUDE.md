@@ -164,6 +164,11 @@ skriv til ham på norsk. Han utvikler på Windows og har en Homey Pro (Early 202
   «endret kl. …» per lys. Endrer den seg ikke etter bruk av fjernkontroll, har
   ikke Homey fått beskjed (lysets egen app har mistet kontakten; f.eks. Plejd
   sin app, som ble løst med omstart av den).
+- **Pauser** (`group.pauses = [{ from, to }]`, `pausedAt()` i felles fil): i
+  tidsrommet hopper tick over rommet, og påslag, lås opp, vekkingsstart og
+  låsdeteksjon gjør ingenting (`_isPausedNow`). Flow-kortet «slå på gruppe» er
+  en uttrykkelig handling og virker likevel. Et lys i flere rom følger det
+  første rommets pauser. Vises dempet på døgnklokka.
 - **Påslag** (`_onSwitchedOn`) venter 1 s før skriving, så en flow som slår på
   og deretter pauser et lys rekker å pause det først.
 - **Flow-tokens** kan ikke endre tittel; ved nytt gruppenavn fjernes tokenet og

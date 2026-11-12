@@ -205,7 +205,16 @@
     "planBold": "plan <b>",
     "actualBold": "faktisk <b>",
     "actualWarmthBold": "faktisk varme <b>",
-    "changedAt": "endret kl. {time}"
+    "changedAt": "endret kl. {time}",
+    "pauses": "Pauser",
+    "pauseAdd": "+ Legg til pause",
+    "pauseFrom": "Pause fra",
+    "pauseTo": "Pause til",
+    "pauseDelete": "Fjern pausen",
+    "pauseHint": "I disse tidsrommene lar appen lysene i rommet være helt i fred, hver dag. Lys du justerer selv i en pause, blir ikke låst. Når pausen er over, følger lysene planen igjen ved neste oppdatering. En pause kan gå over midnatt.",
+    "pauseNone": "Ingen pauser. Appen styrer rommet hele døgnet.",
+    "pausedUntil": "pause til {time}",
+    "pausedSuffix": " · pause"
   },
   "app": {
     "unnamed": "Uten navn",

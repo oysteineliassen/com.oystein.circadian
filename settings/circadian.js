@@ -167,6 +167,26 @@ function fromDeviceTemp(v, cal) {
 }
 
 /**
+ * The pause ({ from, to }, 'HH:mm') a group is in at nowMinutes, or null.
+ * During a pause the app leaves the group's lights alone. A pause may cross
+ * midnight (22:00–06:00); one with the same start and end is ignored.
+ */
+function pausedAt(group, nowMinutes) {
+  const pauses = Array.isArray(group.pauses) ? group.pauses : [];
+  for (const p of pauses) {
+    if (!p || !p.from || !p.to) continue;
+    const from = toMinutesFromTimeString(p.from);
+    const to = toMinutesFromTimeString(p.to);
+    if (from === to) continue;
+    const inside = from < to
+      ? nowMinutes >= from && nowMinutes < to
+      : nowMinutes >= from || nowMinutes < to;
+    if (inside) return p;
+  }
+  return null;
+}
+
+/**
  * How much of the plan's brightness to use for the daylight a light sensor
  * measures: all of it when darker than luxDark, luxMinFactor of it when
  * brighter than luxBright, and in between along a logarithmic scale, since
@@ -328,6 +348,7 @@ const api = {
   calculateCircadianValue,
   fromDeviceTemp,
   luxFactor,
+  pausedAt,
   planToKelvin,
   toDeviceTemp,
   easterSunday,

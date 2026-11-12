@@ -651,6 +651,43 @@ test('lås opp svarer med en gang, og bare lampen som låses opp får nye verdie
   assert.ok(Date.now() - st.groups[0].lights[0].reportedAt < 1000);
 });
 
+test('pause: appen lar rommet være i fred i tidsrommet, og tar over igjen etterpå', async () => {
+  const g = { pauses: [{ from: '09:00', to: '15:00' }, { from: '22:00', to: '06:00' }, { from: '12:00', to: '12:00' }] };
+  assert.strictEqual(lib.pausedAt(g, 8 * 60 + 59), null);
+  assert.strictEqual(lib.pausedAt(g, 9 * 60).to, '15:00');
+  assert.strictEqual(lib.pausedAt(g, 15 * 60), null, 'slutten er ikke med');
+  assert.strictEqual(lib.pausedAt(g, 23 * 60).to, '06:00', 'over midnatt, kveld');
+  assert.strictEqual(lib.pausedAt(g, 5 * 60).to, '06:00', 'over midnatt, morgen');
+  assert.strictEqual(lib.pausedAt(g, 7 * 60), null);
+  assert.strictEqual(lib.pausedAt({}, 600), null);
+
+  // En pause rundt nåværende klokkeslett (på Homeys klokke)
+  const nowMin = Math.floor(lib.zonedMinutesOfDay(new Date(), 'Europe/Oslo'));
+  const hhmm = (m) => { const x = ((m % 1440) + 1440) % 1440; return `${String(Math.floor(x / 60)).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}`; };
+  const d = makeDevice('a', { onoff: true, dim: 0.5, light_temperature: 0.5 });
+  const group = { id: 'g1', name: 'Stue', mode: 'keyframes', keyframes: KEYFRAMES, fadeSeconds: 0, deviceIds: ['a'], pauses: [{ from: hhmm(nowMin - 60), to: hhmm(nowMin + 60) }] };
+  const { app } = await startApp({ devices: [d], groups: [group] });
+  assert.deepStrictEqual(d.writes, [], 'ingen skriving i pausen');
+  // Påslag i pausen: ingen verdier settes
+  d.report('onoff', false);
+  d.report('onoff', true);
+  await wait(300);
+  assert.deepStrictEqual(d.writes, []);
+  // Manuell justering i pausen låser ikke lyset
+  app._lastAppliedAt.a = 0;
+  d.report('dim', 0.9);
+  assert.ok(!app.locks.a, 'justering i en pause skal ikke låse');
+  // Lås opp og vekking gjør heller ingenting i pausen
+  app._applyNowTo(['a']);
+  app._checkWakeUps(app._now(), {});
+  await wait(100);
+  assert.deepStrictEqual(d.writes, []);
+  // Pausen er over: appen tar over igjen
+  group.pauses = [{ from: hhmm(nowMin + 120), to: hhmm(nowMin + 180) }];
+  await app._tick();
+  assert.ok(d.writes.some((w) => w.cap === 'light_temperature'), 'følger planen igjen etter pausen');
+});
+
 test('syntaks i innstillingssiden', () => {
   const html = fs.readFileSync(path.join(ROOT, 'settings/index.html'), 'utf8');
   const scripts = [...html.matchAll(/<script type="text\/javascript">([\s\S]*?)<\/script>/g)].map((m) => m[1]);

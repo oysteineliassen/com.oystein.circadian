@@ -34,6 +34,10 @@ solnedgang, eller egne sjekkpunkter på en 24-timers klokke.
   julaften og nyttårsaften). Kvelden før en arbeidsdag følger hverdagsplanen.
   I *Følg sola* settes egne våkne- og legge seg-tider, med *Egne punkter*
   egne punkter.
+- **Pauser** (per rom): ett eller flere tidsrom i døgnet der appen lar lysene
+  i rommet være helt i fred, f.eks. 09:00–15:00 eller 22:00–06:00. Lys du
+  justerer selv i en pause, blir ikke låst, og etter pausen følger lysene
+  planen igjen. Pausene vises dempet på døgnklokka.
 - **Soloppgangsvekking** (per rom): lys som er av, slås på helt svakt og
   varmt før vekketid og glir opp til planens verdier. Egen vekketid for
   helg og røde dager (tom = ingen vekking da). Lys som allerede er på,

@@ -275,6 +275,7 @@
         luxDark: 50,
         luxBright: 500,
         luxMinFactor: 0.3,
+        pauses: [],
       };
     }
 
@@ -616,6 +617,7 @@
         if (!Array.isArray(g.deviceIds)) g.deviceIds = [];
         if (!Array.isArray(g.keyframes)) g.keyframes = [];
         if (!Array.isArray(g.weekendKeyframes)) g.weekendKeyframes = [];
+        if (!Array.isArray(g.pauses)) g.pauses = [];
       });
       return c;
     }
@@ -634,6 +636,7 @@
       const enabled = group.enabled !== false && config.enabled !== false;
       const v = valuesAt(group, now.minutes, now.weekend);
       const weekendNow = now.weekend && group.weekendEnabled;
+      const pause = C.pausedAt(group, now.minutes);
 
       const stops = [];
       for (let hr = 0; hr <= 24; hr++) {
@@ -663,11 +666,11 @@
         h('div', { class: 'room-head' }, [
           glow,
           h('h2', { text: group.name || tr('settings.unnamed') }),
-          h('span', { class: 'chip', text: (group.mode === 'keyframes' ? tr('settings.modeKeyframes') : tr('settings.followsSun')) + (weekendNow ? tr('settings.weekendSuffix') : '') }),
+          h('span', { class: 'chip', text: (group.mode === 'keyframes' ? tr('settings.modeKeyframes') : tr('settings.followsSun')) + (weekendNow ? tr('settings.weekendSuffix') : '') + (pause && enabled ? tr('settings.pausedSuffix') : '') }),
         ]),
         h('div', { class: 'room-now' }, [
           h('span', { class: 'big num', text: tr('settings.warmthPrefix') + pct(v.temp) + (v.dim != null ? tr('settings.lightInline') + pct(v.dim) : '') }),
-          h('span', { class: 'small muted', text: enabled ? tempWords(v.temp) + tr('settings.nowSuffix') + daylightText(group) : tr('settings.switchedOff') }),
+          h('span', { class: 'small muted', text: !enabled ? tr('settings.switchedOff') : pause ? tr('settings.pausedUntil', { time: pause.to }) : tempWords(v.temp) + tr('settings.nowSuffix') + daylightText(group) }),
         ]),
         strip,
         h('div', { class: 'strip-labels' }, ['00', '06', '12', '18', '24'].map((t) => h('span', { text: t }))),
@@ -808,6 +811,10 @@
       lightsBox.append(buildTestColor(group));
       root.append(lightsBox);
 
+      const pauses = h('div', { class: 'section' }, [h('h3', { text: tr('settings.pauses') })]);
+      pauses.append(buildPauseControls(group, () => dial.redraw()));
+      root.append(pauses);
+
       const wake = h('div', { class: 'section' }, [h('h3', { text: tr('settings.wakeUp') })]);
       wake.append(buildWakeUpControls(group));
       root.append(wake);
@@ -897,6 +904,20 @@
         [R + RING / 2, R - RING / 2].forEach((r) => {
           const edge = s('circle', { cx: CX, cy: CX, r, fill: 'none', 'stroke-width': 1 }, svg);
           edge.style.stroke = 'var(--edge)';
+        });
+
+        // Pauses: the ring and bars dimmed where the app leaves the room alone
+        (group.pauses || []).forEach((p) => {
+          if (!p || !p.from || !p.to || p.from === p.to) return;
+          const from = toMin(p.from);
+          let to = toMin(p.to);
+          if (to <= from) to += 1440;
+          // An SVG arc can't be a full circle, and long ones need the large-arc flag: draw in two halves
+          const mid = (from + to) / 2;
+          [[from, mid], [mid, to]].forEach(([a, b]) => {
+            const dimmed = s('path', { d: arc(a, b, R - 19.5), fill: 'none', 'stroke-width': 61, 'stroke-opacity': 0.72 }, svg);
+            dimmed.style.stroke = 'var(--surface)';
+          });
         });
 
         // Hour ticks and labels
@@ -1517,6 +1538,40 @@
         wrap.append(h('p', { class: 'hint', text: tr('settings.nowColon') + g.lux + tr('settings.luxNowMid') + pct(g.luxFactor) + tr('settings.luxNowEnd') }));
       }
       wrap.append(h('p', { class: 'hint', text: tr('settings.luxHint') }));
+      return wrap;
+    }
+
+    // Times of day the app leaves the room alone
+    function buildPauseControls(group, redrawDial) {
+      const wrap = h('div', { class: 'stack' });
+      const draw = () => {
+        wrap.innerHTML = '';
+        if (group.pauses.length === 0) wrap.append(h('p', { class: 'hint', text: tr('settings.pauseNone') }));
+        group.pauses.forEach((p, i) => {
+          const from = timeField(p.from, (v) => { p.from = v; redrawDial(); updateSaveBar(); });
+          const to = timeField(p.to, (v) => { p.to = v; redrawDial(); updateSaveBar(); });
+          from.setAttribute('aria-label', tr('settings.pauseFrom'));
+          to.setAttribute('aria-label', tr('settings.pauseTo'));
+          wrap.append(h('div', { class: 'row' }, [
+            h('div', { class: 'simulate-row' }, [from, h('span', { class: 'muted', text: '–' }), to]),
+            h('button', {
+              type: 'button',
+              class: 'link danger',
+              text: '✕',
+              'aria-label': tr('settings.pauseDelete'),
+              title: tr('settings.pauseDelete'),
+              onclick: () => { group.pauses.splice(i, 1); draw(); redrawDial(); updateSaveBar(); },
+            }),
+          ]));
+        });
+        wrap.append(h('div', {}, [h('button', {
+          type: 'button',
+          text: tr('settings.pauseAdd'),
+          onclick: () => { group.pauses.push({ from: '09:00', to: '15:00' }); draw(); redrawDial(); updateSaveBar(); },
+        })]));
+        wrap.append(h('p', { class: 'hint', text: tr('settings.pauseHint') }));
+      };
+      draw();
       return wrap;
     }
 
